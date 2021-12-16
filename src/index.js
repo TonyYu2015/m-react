@@ -1,5 +1,5 @@
-import { createElement } from './public/lib/react/REACT';
-import { render } from './public/lib/react/DOM';
+import { createElement } from './lib/react/REACT';
+import { render } from './lib/react/DOM';
 
 window.__DEV__= true;
 window.__PROFILE__= false;
@@ -8,9 +8,9 @@ window.__EXPERIMENTAL__= true;
 function Test(props) {
   return (
     createElement(
-      'div',
+      'span',
       null,
-      createElement('1')
+      '1'
     )
   )
 }

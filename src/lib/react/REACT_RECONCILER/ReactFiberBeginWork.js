@@ -11,19 +11,45 @@ import {
 } from './ReactFiberHooks';
 
 import {
-  mountChildFibers
+  mountChildFibers, reconcileChildFibers
 } from './ReactChildFiber';
-import { FunctionComponent, HostComponent, HostRoot, HostText } from './ReactWorkTags';
+import { ContextProvider, FunctionComponent, HostComponent, HostRoot, HostText, IndeterminateComponent } from './ReactWorkTags';
 import { ContentReset, PerformedWork } from './ReactFiberFlags';
 import { shouldSetTextContent } from '../DOM/ReactDOMHostConfig';
 import { cloneUpdateQueue, processUpdateQueue } from './ReactUpdateQueue';
+import { disableModulePatternComponents } from '../shared/ReactFeatureFlags';
+import { pushHostContainer, pushHostContext } from './ReactFiberHostContext';
+import { pushTopLevelContextObject } from './ReactFiberContext';
 
 let didReceiveUpdate = false;
 
 function reconcileChildren(current, workInProgress, nextChildren, renderLanes) {
-  if(workInProgress === null) {
+  if(current === null) {
     workInProgress.child = mountChildFibers(workInProgress, null, nextChildren, renderLanes);
+  } else {
+    workInProgress.child = reconcileChildFibers(
+      workInProgress,
+      current.child,
+      nextChildren,
+      renderLanes
+    );
   }
+}
+
+function pushHostRootContext(workInProgress) {
+  const root = workInProgress.stateNode;
+
+  if(root.pendingContext) {
+    pushTopLevelContextObject(
+      workInProgress,
+      root.pendingContext,
+      root.pendingContext !== root.context
+    )
+  } else {
+    pushTopLevelContextObject(workInProgress, root.context, false);
+  }
+
+  pushHostContainer(workInProgress, root.containerInfo);
 }
 
 function UpdateFunctionComponent(current, workInProgress, Component, nextProps, renderLanes) {
@@ -33,7 +59,7 @@ function UpdateFunctionComponent(current, workInProgress, Component, nextProps, 
 }
 
 function updateHostRoot(current, workInProgress, renderLanes) {
-  // pushHostRootContext(workInProgress);
+  pushHostRootContext(workInProgress);
   const updateQueue = workInProgress.updateQueue;
   const nexrProps = workInProgress.pendingProps;
   const prevState = workInProgress.memoizedState;
@@ -54,7 +80,7 @@ function updateHostRoot(current, workInProgress, renderLanes) {
 }
 
 function updateHostComponent(current, workInProgress, renderLanes) {
-  // pushHostContext(workInProgress);
+  pushHostContext(workInProgress);
   const type = workInProgress.type;
   const nextProps = workInProgress.pendingProps;
   const prevProps = current !== null ? current.memoizedProps : null;
@@ -77,6 +103,40 @@ function updateHostText(current, workInProgress) {
   return null;
 }
 
+function mountIndeterminateComponent(_current, workInProgress, Component, renderLanes) {
+  if(_current !== null) {
+
+  }  
+
+  const props = workInProgress.pendingProps;
+  let context;
+  let value;
+  value = renderWithHooks(
+    null,
+    workInProgress,
+    Component,
+    props,
+    context,
+    renderLanes
+  );
+
+  workInProgress.flags |= PerformedWork;
+
+  if(
+    !disableModulePatternComponents &&
+    typeof value === 'object' &&
+    value !== null &&
+    typeof value.render === 'function' &&
+    value.$$typeof === undefined
+  ) {
+
+  } else {
+    workInProgress.tag = FunctionComponent;
+    reconcileChildren(null, workInProgress, value, renderLanes);
+    return workInProgress.child;
+  }
+}
+
 
 
 function beginWork(current, workInProgress, renderLanes) {
@@ -90,6 +150,13 @@ function beginWork(current, workInProgress, renderLanes) {
   workInProgress.lanes = NoLanes;
 
   switch(workInProgress.tag) {
+    case IndeterminateComponent:
+      return mountIndeterminateComponent(
+        current,
+        workInProgress,
+        workInProgress.type,
+        renderLanes,
+      );
     case FunctionComponent:
       const Component = workInProgress.type;
       const unresolvedProps = workInProgress.pendingProps;

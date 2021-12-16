@@ -1,4 +1,5 @@
 import { createHostRootFiber } from "./ReactFiber";
+import { NoLanes } from "./ReactFiberLane";
 import { initializedUpdateQueue } from "./ReactUpdateQueue";
 
 export function FiberRootNode(containerInfo, tag) {
@@ -16,14 +17,14 @@ export function FiberRootNode(containerInfo, tag) {
   // this.eventTimes = createLaneMap(NoLanes);
   // this.expirationTimes = createLaneMap(NoTimestamp);
 
-  // this.pendingLanes = NoLanes;
-  // this.suspendedLanes = NoLanes;
-  // this.pingedLanes = NoLanes;
-  // this.expiredLanes = NoLanes;
-  // this.mutableReadLanes = NoLanes;
-  // this.finishedLanes = NoLanes;
+  this.pendingLanes = NoLanes;
+  this.suspendedLanes = NoLanes;
+  this.pingedLanes = NoLanes;
+  this.expiredLanes = NoLanes;
+  this.mutableReadLanes = NoLanes;
+  this.finishedLanes = NoLanes;
 
-  // this.entangledLanes = NoLanes;
+  this.entangledLanes = NoLanes;
   // this.entanglements = createLaneMap(NoLanes);
 
 

@@ -1,7 +1,8 @@
 import { createTextNode, updateProperties } from "./ReactDOMComponent";
 import { updateFiberProps } from "./ReactDOMComponentTree";
-import { COMMENT_NODE, DOCUMENT_NODE, ELEMENT_NODE } from "./shared/HTMLNodeType";
+import { COMMENT_NODE, DOCUMENT_FRAGMENT_NODE, DOCUMENT_NODE, ELEMENT_NODE } from "./shared/HTMLNodeType";
 import { createElement } from './ReactDOMComponent';
+import { getChildNamespace } from "./shared/DOMNamespaces";
 
 export const supportsMutation = true;
 
@@ -80,4 +81,35 @@ export function createInstance(type, props, rootContainerInstance, hostContext, 
 
   updateFiberProps(domElement, props);
   return domElement;
+}
+
+export function getRootHostContext(rootContainerInstance) {
+  let type;
+  let namespace;
+  const nodeType = rootContainerInstance.nodeType;
+  switch(nodeType) {
+    case DOCUMENT_NODE:
+    case DOCUMENT_FRAGMENT_NODE:
+      type = nodeType === DOCUMENT_NODE ? "#document" : "#fragment";
+      const root = rootContainerInstance.documentElement;
+      namespace = root ? root.namespaceURI : getChildNamespace(null, '');
+      break;
+    default: 
+      const container = nodeType === COMMENT_NODE ? rootContainerInstance.parentNode : rootContainerInstance;
+      const ownNamespace = container.namespaceURI || null;
+      type = container.tagName;
+      namespace = getChildNamespace(ownNamespace, type);
+      break;
+  }
+
+  return namespace;
+}
+
+export function getChildHostContext(parentHostContext, type, rootContainerInstance) {
+  const parentNamespace = parentHostContext;
+  return getChildNamespace(parentNamespace, type);
+}
+
+export function getPublicInstance(instance) {
+  return instance;
 }

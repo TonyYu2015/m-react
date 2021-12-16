@@ -7,6 +7,8 @@
  * @flow strict
  */
 
+import { __DEV__, __EXPERIMENTAL__, __PROFILE__ } from "./CONSTS";
+
 // Filter certain DOM attributes (e.g. src, href) if their values are empty strings.
 // This prevents e.g. <img src=""> from making an unnecessary HTTP request for certain browsers.
 export const enableFilterEmptyStringAttributesDOM = false;

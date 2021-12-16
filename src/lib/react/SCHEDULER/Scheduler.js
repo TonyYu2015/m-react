@@ -7,7 +7,7 @@ import {
 } from './SchedulerPriorities';
 
 
-const currentPriorityLevel = NormalPriority;
+let currentPriorityLevel = NormalPriority;
 
 function unstable_getCurrentPriorityLevel() {
   return currentPriorityLevel;

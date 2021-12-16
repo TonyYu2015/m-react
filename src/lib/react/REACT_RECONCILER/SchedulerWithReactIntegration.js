@@ -66,3 +66,32 @@ export function runWithPriority(reactPriorityLevel, fn) {
 export function scheduleCallback(reactPriorityLevel, callback, options) {
   const priorityLevel = reactPriorityToSchedulerPriority(reactPriorityLevel);
 }
+
+export function flushSyncCallbackQueue() {
+  if(immediateQueueCallbackNode !== null) {
+    const node = immediateQueueCallbackNode; 
+    immediateQueueCallbackNode = null;
+    Scheduler_cancelCallback(node);
+  }
+
+  flushSyncCallbackQueueImpl();
+}
+
+function flushSyncCallbackQueueImpl() {
+  if(!isFlushingSyncQueue && syncQueue !== null) {
+    isFlushingSyncQueue = true;
+    let i = 0;
+    if(decoupleUpdatePriorityFromScheduler) {
+      const previousLanePriority = getCurrentUpdateLanePriority();
+      try {
+        const isSync = true;
+        const queue = syncQueue;
+        
+      } catch(err) {
+        
+      } finally {
+
+      }
+    }
+  }
+}

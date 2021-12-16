@@ -1,6 +1,7 @@
 import { appendChildToContainer, clearContainer, commitUpdate, insertInContainerBefore, supportsMutation } from "../DOM/ReactDOMHostConfig";
 import { Placement, Snapshot } from "./ReactFiberFlags";
-import { ClassComponent, DehydratedFragment, HostComponent, HostPortal, HostRoot, HostText } from "./ReactWorkTags";
+import { enqueuePendingPassiveHookEffectMount } from "./ReactFiberWorkLoop";
+import { ClassComponent, DehydratedFragment, FunctionComponent, HostComponent, HostPortal, HostRoot, HostText } from "./ReactWorkTags";
 
 export function commitBeforeMutationLifeCycles(current, finishedWork) {
   switch(finishedWork.tag) {
@@ -154,6 +155,81 @@ function commitWork(current, finishedWork) {
           );
         }
       }
+  }
+}
+
+export function commitLifeCycles(finishedRoot, current, finishedWork, committedLanes) {
+  switch(finishedWork.tag) {
+    case FunctionComponent: {
+      commitHookEffectListMount(HookLayout | HookHasEffect, finishedWork);
+
+      schedulePassiveEffects(finishedWork);
+      return;
+    }
+    case HostRoot: {
+      const updateQueue = finishedWork.updateQueue;
+      if(updateQueue !== null) {
+        let instance = null;
+        if(finishedWork.child !== null) {
+          switch(finishedWork.child.tag) {
+            case HostComponent:
+              instance = getPublicInstance(finishedWork.child.stateNode);
+              break;
+          }
+        }
+        commitUpdateQueue(finishedWork, updateQueue, instance);
+      }
+      return;
+    }
+    case HostComponent: {
+      const instance = finishedWork.stateNode;
+      if(current === null && finishedWork.flags & Update) {
+        const type = finishedWork.type;
+        const props = finishedWork.memoizedProps;
+        // commitMount(instance, type, props, finishedWork);
+      }
+
+      return;
+    }
+    case HostText:
+      return;
+  }
+}
+
+function commitHookEffectListMount(tag, finishedWork) {
+  const updateQueue = finishedWork.updateQueue;
+  const lastEffect = updateQueue !== null ? updateQueue.lastEffect : null; 
+  if(lastEffect !== null) {
+    const firstEffect = lastEffect.next;
+    let effect = firstEffect;
+    do{
+      if((effect.tag & tag) === tag) {
+        const create = effect.create;
+        effect.destroy = create();
+      }
+      effect = effect.next;
+    } while(effect !== firstEffect)
+  }
+}
+
+function schedulePassiveEffects(finishedWork) {
+  const updateQueue = finishedWork.updateQueue;
+  const lastEffect = updateQueue !== null ? updateQueue.lastEffect : null;
+  if(lastEffect !== null) {
+    const firstEffect = lastEffect.next;
+    let effect = firstEffect;
+    do{
+      const {next, tag} = effect;
+      if(
+        (tag & HookPassive) !== NoHookEffect &&
+        (tag & HookHasEffect) !== NoHookEffect
+      ) {
+        // enqueuePendingPassiveHookEffectUnmount(finishedWork, effect);
+        enqueuePendingPassiveHookEffectMount(finishedWork, effect);
+      }
+
+      effect = next;
+    } while(effect !== firstEffect)
   }
 }
 

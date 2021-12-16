@@ -145,6 +145,7 @@ function ChildReconciler(shouldTrackSideEffects) {
 }
 
 const mountChildFibers = ChildReconciler(false);
+export const reconcileChildFibers = ChildReconciler(true);
 
 export {
   mountChildFibers

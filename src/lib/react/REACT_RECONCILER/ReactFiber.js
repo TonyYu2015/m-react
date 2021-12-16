@@ -62,12 +62,19 @@ function createFiber(tag, pendingProps, key, mode) {
   return new FiberNode(tag, pendingProps, key, mode);
 }
 
+function shouldConstruct(Component) {
+  const prototype = Component.prototype;
+  return !!(prototype && prototype.isReactComponent);
+}
+
 function createFiberFromTypeAndProps(type, key, pendingProps, owner, mode, lanes) {
   let fiberTag = IndeterminateComponent;
   let resolvedType = type;
 
   if(typeof type === 'function') {
-    fiberTag = ClassComponent;
+    if(shouldConstruct(type)) {
+      fiberTag = ClassComponent;
+    }
   } else if(typeof type === 'string') {
     fiberTag = HostComponent;
   }
@@ -149,6 +156,28 @@ function createWorkInProgress(current, pendingProps) {
 
     return workInProgress;
   }
+
+  workInProgress.flags = current.flags & StaticMask;
+  workInProgress.childLanes = current.childLanes;
+  workInProgress.lanes = current.lanes;
+
+  workInProgress.child = current.child;
+  workInProgress.memoizedProps = current.memoizedProps;
+  workInProgress.memoizedState = current.memoizedState;
+  workInProgress.updateQueue = current.updateQueue;
+
+  const currentDependencies = current.dependencies;
+  workInProgress.dependencies = 
+    currentDependencies === null ? null : {
+      lanes: currentDependencies.lanes,
+      firstContext: currentDependencies.firstContext
+    };
+
+  workInProgress.sibling = current.sibling;
+  workInProgress.index = current.index;
+  workInProgress.ref = current.ref;
+
+  return workInProgress;
 }
 
 export function createHostRootFiber(tag) {
