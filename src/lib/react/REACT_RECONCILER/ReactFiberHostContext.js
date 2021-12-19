@@ -36,6 +36,11 @@ export function pushHostContainer(fiber, nextRootInstance) {
   push(contextStackCursor, nextRootContext, fiber);
 }
 
+export function popHostContainer(fiber) {
+  pop(contextStackCursor, fiber);
+  pop(contextFiberStackCursor, fiber);
+  pop(rootInstanceStackCursor, fiber);
+}
 
 export function pushHostContext(fiber) {
   const rootInstance = requiredContext(rootInstanceStackCursor.current);

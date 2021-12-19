@@ -1,6 +1,7 @@
 import { appendInitialChild, createInstance, createTextInstance } from "../DOM/ReactDOMHostConfig";
-import { Snapshot } from "./ReactFiberFlags";
-import { getHostContext, getRootHostContainer } from "./ReactFiberHostContext";
+import { NoFlags, Snapshot, StaticMask } from "./ReactFiberFlags";
+import { getHostContext, getRootHostContainer, popHostContainer, pushHostContainer, pushHostContext } from "./ReactFiberHostContext";
+import { mergeLanes, NoLane, NoLanes } from "./ReactFiberLane";
 import { FunctionComponent, HostComponent, HostRoot, HostText } from "./ReactWorkTags";
 
 function updateHostContainer(current, workInProgress) {
@@ -34,10 +35,55 @@ function appendAllChildren(parent, workInProgress, needsVisibilityToggle, isHidd
   }
 }
 
+function bubbleProperties(completedWork) {
+  const didBailout = 
+    completedWork.alternate !== null &&
+    completedWork.alternate.child === completedWork.child;
+
+  let newChildLanes = NoLanes;
+  let subtreeFlags = NoFlags;
+
+  if(!didBailout) {
+    let child = completedWork.child;
+    while(child !== null) {
+      newChildLanes = mergeLanes(
+        newChildLanes,
+        mergeLanes(child.lanes, child.childLanes)
+      );
+
+      subtreeFlags |= child.subtreeFlags;
+      subtreeFlags |= child.flags;
+
+      child = child.sibling;
+
+      completedWork.subtreeFlags |= subtreeFlags;
+    }
+  } else {
+    let child = completedWork.child;
+    while (child !== null) {
+      newChildLanes = mergeLanes(
+        newChildLanes,
+        mergeLanes(child.lanes, child.childLanes),
+      );
+
+      subtreeFlags |= child.subtreeFlags & StaticMask;
+      subtreeFlags |= child.flags & StaticMask;
+
+      child = child.sibling;
+    }
+    completedWork.subtreeFlags |= subtreeFlags;
+  }
+
+  completedWork.childLanes =  newChildLanes;
+  return didBailout;
+}
+
 export function completeWork(current, workInProgress, renderLanes) {
   const newProps = workInProgress.pendingProps;
   switch(workInProgress.tag) {
-    case HostRoot:
+    case HostRoot: {
+      popHostContainer(workInProgress);
+
       const fiberRoot = workInProgress.stateNode;
       if(fiberRoot.pendingContext) {
         fiberRoot.context = fiberRoot.pendingContext;
@@ -49,8 +95,12 @@ export function completeWork(current, workInProgress, renderLanes) {
       }
 
       updateHostContainer(current, workInProgress);
+      bubbleProperties(workInProgress);
       return null;
-    case HostComponent:
+    }
+
+    case HostComponent:  {
+      pushHostContext(workInProgress);
       const rootContainerInstance = getRootHostContainer();
       const type = workInProgress.type;
       if(current !== null && workInProgress.stateNode != null) {
@@ -66,10 +116,18 @@ export function completeWork(current, workInProgress, renderLanes) {
         );
         appendAllChildren(instance, workInProgress, false, false);
         workInProgress.stateNode = instance;
+        // if(
+        //   finalizeInitialChildren(instance, type, newProps, rootContainerInstance, currentHostContext)
+        //   ) {
+        //     markUpdate(workInProgress);
+        //   }
       }
-
+      bubbleProperties(workInProgress);
       return null;
+    }
+
     case FunctionComponent:
+      bubbleProperties(workInProgress);
       return null;
     case HostText:
       const newText = newProps;
@@ -86,6 +144,7 @@ export function completeWork(current, workInProgress, renderLanes) {
           workInProgress
         );
       }
+      bubbleProperties(workInProgress);
       return null;;
   }
 }

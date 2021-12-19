@@ -1,6 +1,7 @@
-import { appendChildToContainer, clearContainer, commitUpdate, insertInContainerBefore, supportsMutation } from "../DOM/ReactDOMHostConfig";
-import { Placement, Snapshot } from "./ReactFiberFlags";
-import { enqueuePendingPassiveHookEffectMount } from "./ReactFiberWorkLoop";
+import { appendChildToContainer, clearContainer, commitUpdate, getPublicInstance, insertInContainerBefore, supportsMutation } from "../DOM/ReactDOMHostConfig";
+import { Callback, LayoutMask, NoFlags, PassiveMask, Placement, Snapshot, Update } from "./ReactFiberFlags";
+import { enqueuePendingPassiveHookEffectMount, schedulePassiveEffectCallback } from "./ReactFiberWorkLoop";
+import { commitUpdateQueue } from "./ReactUpdateQueue";
 import { ClassComponent, DehydratedFragment, FunctionComponent, HostComponent, HostPortal, HostRoot, HostText } from "./ReactWorkTags";
 
 export function commitBeforeMutationLifeCycles(current, finishedWork) {
@@ -196,22 +197,6 @@ export function commitLifeCycles(finishedRoot, current, finishedWork, committedL
   }
 }
 
-function commitHookEffectListMount(tag, finishedWork) {
-  const updateQueue = finishedWork.updateQueue;
-  const lastEffect = updateQueue !== null ? updateQueue.lastEffect : null; 
-  if(lastEffect !== null) {
-    const firstEffect = lastEffect.next;
-    let effect = firstEffect;
-    do{
-      if((effect.tag & tag) === tag) {
-        const create = effect.create;
-        effect.destroy = create();
-      }
-      effect = effect.next;
-    } while(effect !== firstEffect)
-  }
-}
-
 function schedulePassiveEffects(finishedWork) {
   const updateQueue = finishedWork.updateQueue;
   const lastEffect = updateQueue !== null ? updateQueue.lastEffect : null;
@@ -230,6 +215,70 @@ function schedulePassiveEffects(finishedWork) {
 
       effect = next;
     } while(effect !== firstEffect)
+  }
+}
+
+export function recursivelyCommitLayoutEffects(finishedWork, finishedRoot) {
+  const {flags, tag} = finishedWork;
+  switch(tag) {
+    default:  
+      let child =  finishedWork.child;
+      while(child !== null) {
+        const primarySubtreeFlags = finishedWork.subtreeFlags &  LayoutMask;
+        if(primarySubtreeFlags !== NoFlags) {
+          recursivelyCommitLayoutEffects(child, finishedRoot);
+        }
+
+        child = child.sibling;
+      }
+
+      const primaryFlags = flags & (Update | Callback);
+      if(primaryFlags !== NoFlags) {
+        switch(tag) {
+          case FunctionComponent:
+            commitHookEffectListMount(HookLayout | HookHasEffect, finishedWork);
+            if((finishedWork.subtreeFlags & PassiveMask) !== NoFlags) {
+              schedulePassiveEffectCallback();
+            }
+            break;
+          case HostRoot:
+            commitLayoutEffectsForHostRoot(finishedWork);
+            break;
+        }
+      }
+  }
+}
+
+function commitHookEffectListMount(flags, finishedWork) {
+  const updateQueue = finishedWork.updateQueue;
+  const lastEffect = updateQueue !== null ? updateQueue.lastEffect : null;
+
+  if(lastEffect !== null) {
+    const firstEffect = lastEffect.next;
+    let effect = firstEffect;
+
+    do{
+      if((effect.tag & flags) === flags) {
+        const create = effect.create;
+        effect.destroy = create();
+      }
+      effect = effect.next;
+    } while(effect !== firstEffect)
+  }
+}
+
+function commitLayoutEffectsForHostRoot(finishedWork) {
+  const update = finishedWork.update;
+  if(update !== null) {
+    let  instance  = null;
+    if(finishedWork.child !== null) {
+      switch(finishedWork.child.tag) {
+        case HostComponent:
+          instance = getPublicInstance(finishedWork.child.stateNode);
+          break;
+      }
+    }
+    commitUpdateQueue(finishedWork, updateQueue, instance);
   }
 }
 

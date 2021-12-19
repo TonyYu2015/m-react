@@ -74,6 +74,7 @@ function updateHostRoot(current, workInProgress, renderLanes) {
   }
 
   const root = workInProgress.stateNode;
+  debugger
   reconcileChildren(current, workInProgress, nextChildren, renderLanes);
   return workInProgress.child;
 

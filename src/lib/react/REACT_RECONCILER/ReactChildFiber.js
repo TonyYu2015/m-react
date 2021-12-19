@@ -9,7 +9,7 @@ import {
   REACT_PORTAL_TYPE,
   REACT_LAZY_TYPE
 } from '../shared/ReactSymbols';
-import { Deletion } from './ReactFiberFlags';
+import { Deletion, Placement } from './ReactFiberFlags';
 import { HostText } from './ReactWorkTags';
 
 function ChildReconciler(shouldTrackSideEffects) {
@@ -92,6 +92,9 @@ function ChildReconciler(shouldTrackSideEffects) {
 
   function placeSingleChild(newFiber) {
     // 添加placement flag TODO
+    if(shouldTrackSideEffects  && newFiber.alternate === null) {
+      newFiber.flags |= Placement;
+    }
     return newFiber;
   }
 

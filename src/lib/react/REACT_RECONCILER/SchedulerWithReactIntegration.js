@@ -1,8 +1,10 @@
 import * as Scheduler from '../SCHEDULER/Scheduler'
+import { getCurrentUpdateLanePriority, setCurrentUpdateLanePriority } from './ReactFiberLane';
 
 const {
   unstable_runWithPriority: Scheduler_runWithPriority,
   unstable_getCurrentPriorityLevel: Scheduler_getCurrentPriorityLevel,
+  unstable_cancelCallback: Scheduler_cancelCallback,
   unstable_ImmediatePriority: Scheduler_ImmediatePriority,
   unstable_UserBlockingPriority: Scheduler_UserBlockingPriority,
   unstable_NormalPriority: Scheduler_NormalPriority,
@@ -86,12 +88,49 @@ function flushSyncCallbackQueueImpl() {
       try {
         const isSync = true;
         const queue = syncQueue;
-        
+        setCurrentUpdateLanePriority(SyncLanePriority);
+        runWithPriority(
+          ImmediatePriority,
+          () => {
+            for(; i < queue.length; i++) {
+              let callback = queue[i];
+              do{
+                callback = callback(isSync);
+              } while(callback !== null)
+            }
+          }
+        );
+        syncQueue = null;
       } catch(err) {
         
       } finally {
+        setCurrentUpdateLanePriority(previousLanePriority);
+        isFlushingSyncQueue = false;
+      }
+    } else {
+      try {
+        const isSync = true;
+        const queue = syncQueue;
+        runWithPriority(
+          ImmediatePriority,
+          () => {
+            for(; i < queue.length; i++) {
+              let callback = queue[i];
+              do{
+                callback = callback(isSync);
+              } while(callback !== null)
+            }
+          }
+        );
+        syncQueue = null;
+      } catch(err) {
 
+      } finally {
+        isFlushingSyncQueue = false;
       }
     }
+    return true;
+  } else {
+    return false;
   }
 }

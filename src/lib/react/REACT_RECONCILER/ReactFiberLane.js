@@ -28,3 +28,64 @@ export const IdleHydrationLane = /*               */ 0b0001000000000000000000000
 const IdleLanes = /*                             */ 0b0110000000000000000000000000000;
 
 export const OffscreenLane = /*                   */ 0b1000000000000000000000000000000;
+
+export const NoLanePriority =  0;
+
+let currentUpdateLanePriority = NoLanePriority;
+
+export function getCurrentUpdateLanePriority() {
+  return  currentUpdateLanePriority;
+}
+
+export function setCurrentUpdateLanePriority(newLanePriority) {
+  currentUpdateLanePriority =  newLanePriority;
+}
+
+export function mergeLanes(a, b) {
+  return a | b;
+}
+
+export  function markRootFinished(root, remainingLanes) {
+  const noLongerPendingLanes = root.pendingLanes & ~remainingLanes;
+  root.pendingLanes  =  remainingLanes;
+
+  root.suspendedLanes = 0;
+  root.pingedLanes = 0;
+
+  root.expiredLanes &= remainingLanes;
+  root.mutableReadLanes  &= remainingLanes;
+
+  root.entangledLanes &= remainingLanes;
+
+  const entanglements = root.entanglements;
+  const eventTimes = root.eventTimes;
+  const expirationTimes = root.expirationTimes;
+
+    // Clear the lanes that no longer have pending work
+    let lanes = noLongerPendingLanes;
+    while (lanes > 0) {
+      const index = pickArbitraryLaneIndex(lanes);
+      const lane = 1 << index;
+  
+      entanglements[index] = NoLanes;
+      eventTimes[index] = NoTimestamp;
+      expirationTimes[index] = NoTimestamp;
+  
+      lanes &= ~lane;
+    }
+}
+
+function pickArbitraryLaneIndex(lanes)  {
+  return 31 - clz32(lanes);
+}
+
+const clz32 = Math.clz32 ? Math.clz32 : clz32Fallback;
+
+const log = Math.log;
+const LN2 = Math.LN2;
+function clz32Fallback(lanes) {
+  if (lanes === 0) {
+    return 32;
+  }
+  return (31 - ((log(lanes) / LN2) | 0)) | 0;
+}

@@ -39,6 +39,10 @@ function unstable_scheduleCallback(priorityLevel, callback, options) {
 
 }
 
+export function unstable_cancelCallback(task) {
+  task.callback = null;
+}
+
 export {
   ImmediatePriority as unstable_ImmediatePriority,
   UserBlockingPriority as unstable_UserBlockingPriority,

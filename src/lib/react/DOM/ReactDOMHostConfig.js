@@ -6,6 +6,9 @@ import { getChildNamespace } from "./shared/DOMNamespaces";
 
 export const supportsMutation = true;
 
+let  eventsEnabled  = null;
+let selectionInformation = null;
+
 export function clearContainer(container) {
   if(container.nodeType === ELEMENT_NODE) {
     container.textContent = '';
@@ -64,7 +67,10 @@ export function shouldSetTextContent(type, props) {
 }
 
 export function resetAfterCommit(containerInfo) {
-
+  // restoreSelection(selectionInformation);
+  // ReactBrowserEventEmitterSetEnabled(eventsEnabled);
+  eventsEnabled = null;
+  selectionInformation = null;
 }
 
 export function createInstance(type, props, rootContainerInstance, hostContext, internalInstanceHandle) {

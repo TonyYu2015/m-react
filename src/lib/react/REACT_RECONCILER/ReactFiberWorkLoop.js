@@ -1,6 +1,8 @@
 import {
   SyncLane,
-  NoLanes
+  NoLanes,
+  markRootFinished,
+  mergeLanes
 } from './ReactFiberLane';
 
 import {
@@ -12,14 +14,16 @@ import {
   getCurrentPriorityLevel,
   ImmediatePriority as ImmediateSchedulerPriority,
   NormalPriority as NormalSchedulerPriority,
-  scheduleCallback
+  scheduleCallback,
+  flushSyncCallbackQueue
 } from './SchedulerWithReactIntegration';
 import { BeforeMutationMask, Callback, Deletion, Incomplete, LayoutMask, MutationMask, NoFlags, Passive, PassiveMask, PerformedWork, Placement, PlacementAndUpdate, Snapshot, Update } from './ReactFiberFlags';
 import {
   commitBeforeMutationLifeCycles as commitBeforeMutationEffectOnFiber, 
   commitPlacement, 
   commitWork,
-  commitLifeCycles as commitLayoutEffectOnFiber
+  commitLifeCycles as commitLayoutEffectOnFiber,
+  recursivelyCommitLayoutEffects
 } from './ReactFiberCommitWork';
 import {
   completeWork
@@ -28,7 +32,6 @@ import { resetAfterCommit } from '../DOM/ReactDOMHostConfig';
 import { createWorkInProgress } from './ReactFiber';
 import ReactCurrentOwner from '../REACT/ReactCurrentOwner';
 import { decoupleUpdatePriorityFromScheduler } from '../shared/ReactFeatureFlags';
-
 let rootDoseHavePassiveEffects = false;
 
 export const NoContext = /*             */ 0b0000000;
@@ -161,14 +164,14 @@ function completeUnitWork(unitOfWork) {
 function performUnitOfWork(unitOfWork) {
   const current = unitOfWork.alternate;
 
-  console.log("====>>>>>performUnitOfWork");
   let next = beginWork(current, unitOfWork);
+  console.log("=====>>>>>afterBeginWork", next);
 
   unitOfWork.memoizedProps = unitOfWork.pendingProps;
 
   if(next === null) {
-    console.log("=====>>>>>complateUnitWork");
     completeUnitWork(unitOfWork);
+    console.log("=====>>>>>afterCompleteWork", unitOfWork);
   } else {
     workInProgress = next;
   }
@@ -242,25 +245,30 @@ function commitRootImpl(root, renderPriorityLevel) {
 
   root.callbackNode = null;
 
+  let remainingLanes =  mergeLanes(finishedWork.lanes, finishedWork.childLanes);
+  markRootFinished(root, remainingLanes);
+
   if(root === workInProgressRoot) {
     workInProgressRoot = null;
     workInProgress = null;
     workInProgressRootRenderLanes = NoLanes;
   }
 
-  let firstEffect;
-  if(finishedWork.flags > PerformedWork) {
-    if(finishedWork.lastEffect !== null) {
-      finishedWork.lastEffect.nextEffect = finishedWork;
-      firstEffect = finishedWork.firstEffect;
-    } else {
-      firstEffect = finishedWork;
-    }
-  } else {
-    firstEffect = finishedWork.firstEffect;
-  }
+  const subtreeHasEffects = 
+  (
+    finishedWork.subtreeFlags  & 
+    (
+      BeforeMutationMask | MutationMask | LayoutMask | PassiveMask
+    )
+  ) !== NoFlags;
 
-  if(firstEffect !== null) {
+  const rootHasEffect = (
+    finishedWork.flags & (
+      BeforeMutationMask | MutationMask | LayoutMask | PassiveMask
+    )
+  ) !== NoFlags;
+
+  if(subtreeHasEffects || rootHasEffect) {
     let previousLanePriority;
 
     const prevExecutionContext = executionContext;
@@ -268,129 +276,160 @@ function commitRootImpl(root, renderPriorityLevel) {
 
     ReactCurrentOwner.current = null;
 
-    nextEffect = firstEffect;
-    do{
-      try {
-        commitBeforeMutationEffects()
-      } catch(err) {
+    commitBeforeMutationEffects(finishedWork);
 
-      }
-    } while(nextEffect !== null)
+    console.log("====>>>>>beforeMutationt", finishedWork);
 
-    nextEffect = firstEffect;
-    do{
-      try{
-        commitMutationEffects(root, renderPriorityLevel);
-      } catch(err) {
+    commitMutationEffects(finishedWork, root, renderPriorityLevel);
+    console.log("====>>>>>afterMutationt", finishedWork);
 
-      }
-    } while(nextEffect !== null)
-
+  
     resetAfterCommit(root.containerInfo);
+    
     root.current = finishedWork;
+    
+    recursivelyCommitLayoutEffects(finishedWork, root);
 
-    nextEffect = firstEffect;
-    do{
-      try{
-        commitLayoutEffects(root, lanes);
-      } catch(err) {
-
+    // If there are pending passive effects, schedule a callback to process them.
+    if (
+      (finishedWork.subtreeFlags & PassiveMask) !== NoFlags ||
+      (finishedWork.flags & PassiveMask) !== NoFlags
+    ) {
+      if (!rootDoesHavePassiveEffects) {
+        rootDoesHavePassiveEffects = true;
+        scheduleCallback(NormalSchedulerPriority, () => {
+          flushPassiveEffects();
+          return null;
+        });
       }
-    } while(nextEffect !== null)
+    }
 
-    nextEffect = null;
+    // requestPaint();
+
     executionContext = prevExecutionContext;
-  } else {
+  } else  {
     root.current = finishedWork;
   }
 
-  if(rootDoseHavePassiveEffects) {
+  const rootDidHavePassiveEffects = rootDoseHavePassiveEffects;
+  if(rootDoseHavePassiveEffects)  {
+    rootDoseHavePassiveEffects = false;
+    rootWithPendingPassiveEffects  = root;
+    pendingPassiveEffectsLanes  = lanes;
+    pendingPassiveEffectsRenderPriority = renderPriorityLevel;
+  }
 
-  } else {
-    nextEffect = firstEffect;
-    while(nextEffect !== null) {
-      const nextNextEffect = nextEffect.nextEffect;
-      nextEffect.nextEffect = null;
-      if(nextEffect.flags & Deletion) {
-        detachFiberAfterEffects(nextEffect);
-      }
-      nextEffect = nextNextEffect;
-    }
+  remainingLanes = root.pendingLanes;
+
+  if(remainingLanes !== NoLanes) {
+
+  }
+
+  if(remainingLanes ===  SyncLane) {
+
   }
 
   // ensureRootIsScheduled(root, now());
-  // flushSyncCallbackQueue();
+
+  if((executionContext & LegacyUnbatchedContext) !== NoContext) {
+    return null;
+  }
+
+  flushSyncCallbackQueue();
 
   return null;
 
 }
 
-// function commitBeforeMutationEffects(firstChild) {
-//   let fiber = firstChild;
-//   // 递归处理fiber
-//   while(fiber !== null) {
-//     // if(fiber.deletions !== null) {
-//     //   commitBeforeMutationEffectsDeletions(fiber.deletions);
-//     // }
-//     if(fiber.child !== null) {
-//       const primarySubtreeFlags = fiber.subtreeFlags & BeforeMutationMask;
-//       if(primarySubtreeFlags !== NoFlags) {
-//         commitBeforeMutationEffects(fiber.child);
-//       }
-//     }
+function  ensureRootIsScheduled(root, currentTime) {
 
-//     try {
-//       commitBeforeMutationEffectsImpl(fiber);
-//     } catch(e) {
-      
-//     }
+}
 
-//     fiber = fiber.sibling;
-//   }
-// }
-
-function commitBeforeMutationEffects() {
-  while(nextEffect !== null) {
-    const current = nextEffect.alternate;
-
-    const flags = nextEffect.flags;
-    if((flags & Snapshot) !== NoFlags) {
-      commitBeforeMutationEffectOnFiber(current, nextEffect);
-    }
-
-    if((flags & Passive) !== NoFlags) {
-      if(!rootDoseHavePassiveEffects) {
-        rootDoseHavePassiveEffects = true;
-        scheduleCallback(
-          NormalSchedulerPriority,
-          () => {
-            flushPassiveEffects();
-            return null;
-          }
-        );
+export function schedulePassiveEffectCallback() {
+  if(!rootDoseHavePassiveEffects) {
+    rootDoseHavePassiveEffects = true;
+    scheduleCallback(
+      NormalSchedulerPriority,
+      () => {
+        flushPassiveEffects();
+        return null;
       }
-    }
-
-    nextEffect = nextEffect.nextEffect;
+    );
   }
 }
 
-// function commitBeforeMutationEffectsImpl(fiber) {
-//   const current = fiber.alternate;
-//   const flags = current.flags;
+function commitBeforeMutationEffects(firstChild) {
+  let fiber = firstChild;
+  // 递归处理fiber
+  while(fiber !== null) {
+    // if(fiber.deletions !== null) {
+    //   commitBeforeMutationEffectsDeletions(fiber.deletions);
+    // }
+    if(fiber.child !== null) {
+      const primarySubtreeFlags = fiber.subtreeFlags & BeforeMutationMask;
+      if(primarySubtreeFlags !== NoFlags) {
+        commitBeforeMutationEffects(fiber.child);
+      }
+    }
 
-//   if((flags & Snapshot) !== NoFlags) {
-//     commitBeforeMutationEffectsOnFiber(current, fiber);
-//   } 
+    try {
+      commitBeforeMutationEffectsImpl(fiber);
+    } catch(e) {
+      
+    }
 
-//   if((flags & Passive) !== flags) {
-//     // if(!rootDoseHavePassiveEffects) {
-//     //   rootDoseHavePassiveEffects = true;
+    fiber = fiber.sibling;
+  }
+}
 
-//     // }
+// function commitBeforeMutationEffects() {
+//   while(nextEffect !== null) {
+//     const current = nextEffect.alternate;
+
+//     const flags = nextEffect.flags;
+//     if((flags & Snapshot) !== NoFlags) {
+//       commitBeforeMutationEffectOnFiber(current, nextEffect);
+//     }
+
+//     if((flags & Passive) !== NoFlags) {
+//       if(!rootDoseHavePassiveEffects) {
+//         rootDoseHavePassiveEffects = true;
+//         scheduleCallback(
+//           NormalSchedulerPriority,
+//           () => {
+//             flushPassiveEffects();
+//             return null;
+//           }
+//         );
+//       }
+//     }
+
+//     nextEffect = nextEffect.nextEffect;
 //   }
-
 // }
+
+function commitBeforeMutationEffectsImpl(fiber) {
+  const current = fiber.alternate;
+  const flags = current.flags;
+
+  if((flags & Snapshot) !== NoFlags) {
+    commitBeforeMutationEffectsOnFiber(current, fiber);
+  } 
+
+  if((flags & Passive) !== flags) {
+    if(!rootDoseHavePassiveEffects) {
+      rootDoseHavePassiveEffects = true;
+      scheduleCallback(
+        NormalSchedulerPriority,
+        () => {
+          flushPassiveEffects();
+          return null;
+        }
+      );
+    }
+  }
+
+}
 
 function commitMutationEffects(firstChild, root, renderPriorityLevel) {
   let fiber = firstChild;
@@ -460,13 +499,12 @@ function performSyncWorkOnRoot(root) {
   let existStatus;
   // lanes = getNextLanes(root, NoLanes);
   lanes = NoLanes;
-  debugger;
   existStatus = renderRootSync(root, lanes);
 
   const finishedWork = root.current.alternate;
   root.finishedWork = finishedWork;
   root.finishedLanes = lanes;
-
+  console.log("====>>>>beforeCommitRoot", root);
   commitRoot(root);
 
   return null;
