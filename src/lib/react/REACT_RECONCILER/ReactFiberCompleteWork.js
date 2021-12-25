@@ -1,5 +1,5 @@
-import { appendInitialChild, createInstance, createTextInstance } from "../DOM/ReactDOMHostConfig";
-import { NoFlags, Snapshot, StaticMask } from "./ReactFiberFlags";
+import { appendInitialChild, createInstance, createTextInstance, finalizeInitialChildren } from "../DOM/ReactDOMHostConfig";
+import { NoFlags, Snapshot, StaticMask, Update } from "./ReactFiberFlags";
 import { getHostContext, getRootHostContainer, popHostContainer, pushHostContainer, pushHostContext } from "./ReactFiberHostContext";
 import { mergeLanes, NoLane, NoLanes } from "./ReactFiberLane";
 import { FunctionComponent, HostComponent, HostRoot, HostText } from "./ReactWorkTags";
@@ -116,11 +116,11 @@ export function completeWork(current, workInProgress, renderLanes) {
         );
         appendAllChildren(instance, workInProgress, false, false);
         workInProgress.stateNode = instance;
-        // if(
-        //   finalizeInitialChildren(instance, type, newProps, rootContainerInstance, currentHostContext)
-        //   ) {
-        //     markUpdate(workInProgress);
-        //   }
+        if(
+          finalizeInitialChildren(instance, type, newProps, rootContainerInstance, currentHostContext)
+          ) {
+            markUpdate(workInProgress);
+          }
       }
       bubbleProperties(workInProgress);
       return null;
@@ -147,4 +147,8 @@ export function completeWork(current, workInProgress, renderLanes) {
       bubbleProperties(workInProgress);
       return null;;
   }
+}
+
+function markUpdate(workInProgress) {
+  workInProgress.flags |= Update;
 }

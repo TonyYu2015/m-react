@@ -68,3 +68,48 @@ export function createElement(type, props, rootContainerElement, parentNamespace
 
   return domElement;
 }
+
+export  function  setInitialProperties(domElement, tag, rawProps, rootContainerElement) {
+  const isCustomComponentTag = isCustomComponent(tag, rawProps);
+  let props;
+  switch(tag) {
+    // TODO 特定类型的标签
+    default:
+      props = rawProps;
+  }
+
+  // assertValidProps(tag, props);
+
+  setInitialDOMProperties(tag, domElement, rootContainerElement, props, isCustomComponentTag);
+
+  switch(tag) {
+    // TODO
+  }
+}
+
+function setInitialDOMProperties(tag, domElement,  rootContainerElement, nextProps, isCustomComponentTag) {
+  for(const propKey in  nextProps) {
+    if(!nextProps.hasOwnProperty(propKey)) {
+      continue;
+    }
+
+    const nextProp = nextProps[propKey];
+    if(propKey === STYLE)  {
+
+    } else if(propKey ===  DANGEROUSLY_SET_INNER_HTML) {
+
+    } else if(propKey === CHILDREN) {
+      if(typeof nextProp === 'string') {
+        const canSetTextContent = tag !== 'textarea' || nextProp !== '';
+        if(canSetTextContent) {
+          setTextContent(domElement, nextProp);
+        }
+      } else if(typeof nextProp ===  'number') {
+
+      }
+      //  TODO 其他情况
+    } else  {
+
+    }
+  }
+}

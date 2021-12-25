@@ -1,4 +1,4 @@
-import { createTextNode, updateProperties } from "./ReactDOMComponent";
+import { createTextNode, setInitialProperties, updateProperties } from "./ReactDOMComponent";
 import { updateFiberProps } from "./ReactDOMComponentTree";
 import { COMMENT_NODE, DOCUMENT_FRAGMENT_NODE, DOCUMENT_NODE, ELEMENT_NODE } from "./shared/HTMLNodeType";
 import { createElement } from './ReactDOMComponent';
@@ -118,4 +118,20 @@ export function getChildHostContext(parentHostContext, type, rootContainerInstan
 
 export function getPublicInstance(instance) {
   return instance;
+}
+
+export function finalizeInitialChildren(domElement, type, props, rootContainerInstance, hostContext) {
+  setInitialProperties(domElement, type, props, rootContainerInstance);
+  return shouldAutoFocusHostComponent(type, props);
+}
+
+function shouldAutoFocusHostComponent(type, props) {
+  switch (type) {
+    case 'button':
+    case 'input':
+    case 'select':
+    case 'textarea':
+      return !!props.autoFocus;
+  }
+  return false;
 }
