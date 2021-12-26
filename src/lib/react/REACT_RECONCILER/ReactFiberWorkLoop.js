@@ -14,6 +14,7 @@ import {
   getCurrentPriorityLevel,
   ImmediatePriority as ImmediateSchedulerPriority,
   NormalPriority as NormalSchedulerPriority,
+  NoPriority as NoSchedulerPriority,
   scheduleCallback,
   flushSyncCallbackQueue
 } from './SchedulerWithReactIntegration';
@@ -23,7 +24,9 @@ import {
   commitPlacement, 
   commitWork,
   commitLifeCycles as commitLayoutEffectOnFiber,
-  recursivelyCommitLayoutEffects
+  recursivelyCommitLayoutEffects,
+  commitPassiveUnmount as commitPassiveUnmountOnFiber,
+  commitPassiveMount as commitPassiveMountOnFiber,
 } from './ReactFiberCommitWork';
 import {
   completeWork
@@ -102,6 +105,19 @@ const RENDER_TIMEOUT_MS = 500;
 
 // Used to avoid traversing the return path to find the nearest Profiler ancestor during commit.
 let nearestProfilerOnStack = null;
+
+let rootDoesHavePassiveEffects = false;
+let rootWithPendingPassiveEffects = null;
+let pendingPassiveEffectsRenderPriority = NoSchedulerPriority;
+let pendingPassiveEffectsLanes = NoLanes;
+
+// Use these to prevent an infinite loop of nested updates
+const NESTED_UPDATE_LIMIT = 50;
+let nestedUpdateCount = 0;
+let rootWithNestedUpdates = null;
+
+const NESTED_PASSIVE_UPDATE_LIMIT = 50;
+let nestedPassiveUpdateCount = 0;
 
 function unbatchedUpdates(fn) {
   const prevExecutionContext = executionContext;
@@ -564,50 +580,8 @@ function flushPassiveEffectsImpl() {
   const prevExecutionContext = executionContext; 
   executionContext |= CommitContext;
 
-    // First pass: Destroy stale passive effects.
-  const unmountEffects = pendingPassiveHookEffectsUnmount;
-  pendingPassiveHookEffectsUnmount = [];
-  for(let i = 0; i < unmountEffects.length; i += 2) {
-    const effect = unmountEffects[i];
-    const fiber = unmountEffects[i + 1];
-    const destory = effect.destory;
-    effect.destory = undefined;
-
-    if(typeof destory === 'function') {
-      try {
-        destory()
-      } catch(err) {
-
-      }
-    }
-  }
-
-  // Second pass: Create new passive effects.
-  const mountEffects = pendingPassiveHookEffectsMount;
-  pendingPassiveHookEffectsMount = [];
-  for(let i = 0; i < mountEffects.length; i += 2) {
-    const effect = mountEffects[i];
-    const fiber = mountEffects[i + 1];
-    try {
-      const create = effect.create;
-      effect.destory = create();
-    } catch(err) {
-
-    }
-  }
-  // Note: This currently assumes there are no passive effects on the root fiber
-  // because the root is not part of its own effect list.
-  // This could change in the future. 
-  let effect = root.current.firstEffect;
-  while(effect !== null) {
-    const nextNextEffect = effect.nextEffect;
-    effect.nextEffect = null;
-    if(effect.flags & Deletion) {
-      detachFiberAfterEffects(effect);
-    }
-
-    effect = nextNextEffect;
-  }
+  flushPassiveUnmountEffects(root.current);
+  flushPassiveMountEffects(root, root.current);
 
   executionContext = prevExecutionContext;
 
@@ -617,6 +591,48 @@ function flushPassiveEffectsImpl() {
   rootWithPendingPassiveEffects === null ? 0 : nestedPassiveUpdateCount + 1;
 
   return true;
+}
+
+function flushPassiveUnmountEffects(firstChild) {
+  let fiber = firstChild;
+  while(fiber !== null) {
+    const deletions = fiber.deletions;
+    if(deletions !== null) {
+
+    }
+
+    const child = fiber.child;
+    if(child !== null) {
+      const passiveFlags = fiber.subtreeFlags & PassiveMask;
+      if(passiveFlags !== NoFlags) {
+        flushPassiveUnmountEffects(child);
+      }
+    }
+
+    const primaryFlags = fiber.flags & Passive;
+    if(primaryFlags !== NoFlags) {
+      commitPassiveUnmountOnFiber(fiber);
+    }
+
+    fiber = fiber.sibling;
+
+  }
+}
+
+function flushPassiveMountEffects(root, firstChild) {
+  let fiber = firstChild;
+  while(fiber !== null) {
+    const primarySubtreeFlags = fiber.subtreeFlags & PassiveMask;
+    if(fiber.child !== null && primarySubtreeFlags !== NoFlags) {
+      flushPassiveMountEffects(root, fiber.child);
+    }
+
+    if((fiber.flags & Passive) !== NoFlags) {
+      commitPassiveMountOnFiber(root, fiber);
+    }
+
+    fiber = fiber.sibling;
+  }
 }
 
 export {

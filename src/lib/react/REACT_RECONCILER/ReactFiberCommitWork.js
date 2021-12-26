@@ -249,24 +249,6 @@ export function recursivelyCommitLayoutEffects(finishedWork, finishedRoot) {
   }
 }
 
-function commitHookEffectListMount(flags, finishedWork) {
-  const updateQueue = finishedWork.updateQueue;
-  const lastEffect = updateQueue !== null ? updateQueue.lastEffect : null;
-
-  if(lastEffect !== null) {
-    const firstEffect = lastEffect.next;
-    let effect = firstEffect;
-
-    do{
-      if((effect.tag & flags) === flags) {
-        const create = effect.create;
-        effect.destroy = create();
-      }
-      effect = effect.next;
-    } while(effect !== firstEffect)
-  }
-}
-
 function commitLayoutEffectsForHostRoot(finishedWork) {
   const update = finishedWork.update;
   if(update !== null) {
@@ -279,6 +261,64 @@ function commitLayoutEffectsForHostRoot(finishedWork) {
       }
     }
     commitUpdateQueue(finishedWork, updateQueue, instance);
+  }
+}
+
+export function commitPassiveUnmount(finishedWork) {
+  switch(finishedWork.tag) {
+    case FunctionComponent: {
+      commitHookEffectListUnmount(
+        HookPassive | HookHasEffect,
+        finishedWork,
+        finishedWork.return
+      );
+      break;
+    }
+  }
+}
+
+function commitHookEffectListUnmount(flags, finishedWork, nearestMountedAncestor) {
+  const updateQueue = finishedWork.update;
+  const lastEffect = updateQueue.lastEffect !== null ? updateQueue.lastEffect : null;
+  if(lastEffect !== null) {
+    const firstEffect = lastEffect.next;
+    let effect = firstEffect;
+    do {
+      if((effect.tag & flags) ===  flags) {
+        const destory = effect.destory;
+        effect.destory = undefined;
+        if(destory !== undefined) {
+          destory();
+        }
+      }
+      effect = effect.next;
+    } while(effect !== firstEffect)
+  }
+}
+
+export function commitPassiveMount(finishedRoot, finishedWork) {
+  switch(finishedWork.tag) {
+    case FunctionComponent: {
+      commitHookEffectListMount(HookPassive | HookHasEffect, finishedWork);
+      break;
+    }
+  }
+}
+
+function commitHookEffectListMount(flags, finishedWork) {
+  const updateQueue = finishedWork.updateQueue;
+  const lastEffect = updateQueue.lastEffect !== null ? updateQueue.lastEffect : null;
+  if(lastEffect !== null) {
+    const firstEffect = lastEffect.next;
+    let effect = firstEffect;
+    do {
+      if((effect.flags & flags) === flags) {
+        const create = effect.create;
+        effect.destory = create();
+
+        effect = effect.next;
+      }
+    } while (effect !== firstEffect)
   }
 }
 

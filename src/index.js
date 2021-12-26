@@ -1,4 +1,4 @@
-import { createElement } from './lib/react/REACT';
+import { createElement, useState, useEffect } from './lib/react/REACT';
 import { render } from './lib/react/DOM';
 
 window.__DEV__= true;
@@ -6,11 +6,21 @@ window.__PROFILE__= false;
 window.__EXPERIMENTAL__= true;
 
 function Test(props) {
+  const [text, setText] = useState('1');
+
+  useEffect(() => {
+    console.log("=====>>>>>useEffect");
+    // setTimeout(function() {
+    //   setText(2);
+    // }, 2000);
+  }, []);
+  console.log("=====>>>>>text", text);
+
   return (
     createElement(
       'span',
       null,
-      '1'
+      text
     )
   )
 }

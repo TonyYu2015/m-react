@@ -5,6 +5,7 @@ const {
   unstable_runWithPriority: Scheduler_runWithPriority,
   unstable_getCurrentPriorityLevel: Scheduler_getCurrentPriorityLevel,
   unstable_cancelCallback: Scheduler_cancelCallback,
+  unstable_scheduleCallback: Scheduler_scheduleCallback,
   unstable_ImmediatePriority: Scheduler_ImmediatePriority,
   unstable_UserBlockingPriority: Scheduler_UserBlockingPriority,
   unstable_NormalPriority: Scheduler_NormalPriority,
@@ -67,6 +68,7 @@ export function runWithPriority(reactPriorityLevel, fn) {
 
 export function scheduleCallback(reactPriorityLevel, callback, options) {
   const priorityLevel = reactPriorityToSchedulerPriority(reactPriorityLevel);
+  return Scheduler_scheduleCallback(priorityLevel, callback, options);
 }
 
 export function flushSyncCallbackQueue() {
