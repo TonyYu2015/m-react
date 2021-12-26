@@ -55,7 +55,7 @@ function unstable_getCurrentPriorityLevel() {
   return currentPriorityLevel;
 }
 
-function unstable_runWithPriority(priorityLevel, eventHandle) {
+function unstable_runWithPriority(priorityLevel, eventHandle) { 
   switch(priorityLevel) {
     case ImmediatePriority:
     case UserBlockingPriority:
