@@ -426,13 +426,13 @@ function commitBeforeMutationEffects(firstChild) {
 
 function commitBeforeMutationEffectsImpl(fiber) {
   const current = fiber.alternate;
-  const flags = current.flags;
+  const flags = fiber.flags;
 
   if((flags & Snapshot) !== NoFlags) {
     commitBeforeMutationEffectsOnFiber(current, fiber);
   } 
 
-  if((flags & Passive) !== flags) {
+  if((flags & Passive) !== NoFlags) {
     if(!rootDoseHavePassiveEffects) {
       rootDoseHavePassiveEffects = true;
       scheduleCallback(

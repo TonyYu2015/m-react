@@ -3,6 +3,12 @@ import { Callback, LayoutMask, NoFlags, PassiveMask, Placement, Snapshot, Update
 import { enqueuePendingPassiveHookEffectMount, schedulePassiveEffectCallback } from "./ReactFiberWorkLoop";
 import { commitUpdateQueue } from "./ReactUpdateQueue";
 import { ClassComponent, DehydratedFragment, FunctionComponent, HostComponent, HostPortal, HostRoot, HostText } from "./ReactWorkTags";
+import {
+  NoFlags as NoHookEffect,
+  HasEffect as HookHasEffect,
+  Layout as HookLayout,
+  Passive as HookPassive,
+} from './ReactHookEffectTags'
 
 export function commitBeforeMutationLifeCycles(current, finishedWork) {
   switch(finishedWork.tag) {
@@ -137,6 +143,14 @@ function commitWork(current, finishedWork) {
   }
 
   switch(finishedWork.tag) {
+    case FunctionComponent: {
+      commitHookEffectListUnmount(
+        HookLayout | HookHasEffect,
+        finishedWork,
+        finishedWork.return
+      );
+      return;
+    }
     case HostComponent:
       const instance = finishedWork.stateNode;
       if(instance !== null) {
@@ -156,6 +170,8 @@ function commitWork(current, finishedWork) {
           );
         }
       }
+    default:
+      return;
   }
 }
 
@@ -278,7 +294,7 @@ export function commitPassiveUnmount(finishedWork) {
 }
 
 function commitHookEffectListUnmount(flags, finishedWork, nearestMountedAncestor) {
-  const updateQueue = finishedWork.update;
+  const updateQueue = finishedWork.updateQueue;
   const lastEffect = updateQueue.lastEffect !== null ? updateQueue.lastEffect : null;
   if(lastEffect !== null) {
     const firstEffect = lastEffect.next;
@@ -312,7 +328,7 @@ function commitHookEffectListMount(flags, finishedWork) {
     const firstEffect = lastEffect.next;
     let effect = firstEffect;
     do {
-      if((effect.flags & flags) === flags) {
+      if((effect.tag & flags) === flags) {
         const create = effect.create;
         effect.destory = create();
 

@@ -41,7 +41,8 @@ if(hasPerformanceNow) {
 }
 
 export function shouldYieldToHost() {
-  return getCurrentTime() >= deadline;
+  return false;
+  // return getCurrentTime() >= deadline;
 }
 
 export function requestPaint() {}
