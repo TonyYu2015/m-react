@@ -1,5 +1,6 @@
 import * as Scheduler from '../SCHEDULER/Scheduler'
-import { getCurrentUpdateLanePriority, setCurrentUpdateLanePriority } from './ReactFiberLane';
+import { decoupleUpdatePriorityFromScheduler } from '../shared/ReactFeatureFlags';
+import { getCurrentUpdateLanePriority, setCurrentUpdateLanePriority, SyncLanePriority } from './ReactFiberLane';
 
 const {
   unstable_runWithPriority: Scheduler_runWithPriority,
@@ -11,7 +12,18 @@ const {
   unstable_NormalPriority: Scheduler_NormalPriority,
   unstable_LowPriority: Scheduler_LowPriority,
   unstable_IdlePriority: Scheduler_IdlePriority,
+  unstable_now: Scheduler_now
 } = Scheduler;
+
+const fakeCallbackNode = {};
+let syncQueue = null;
+let immediateQueueCallbackNode = null;
+let isFlushingSyncQueue = false;
+const initialTimeMs = Scheduler_now();
+
+export const now =
+  initialTimeMs < 10000 ? Scheduler_now : () => Scheduler_now() - initialTimeMs;
+
 
 
 
@@ -79,6 +91,26 @@ export function flushSyncCallbackQueue() {
   }
 
   flushSyncCallbackQueueImpl();
+}
+
+export function cancelCallback(callbackNode) {
+  if(callbackNode !== fakeCallbackNode) {
+    Scheduler_cancelCallback(callbackNode);
+  }
+}
+
+export function scheduleSyncCallback(callback) {
+  if(syncQueue === null) {
+    syncQueue = [callback];
+    immediateQueueCallbackNode = Scheduler_scheduleCallback(
+      Scheduler_ImmediatePriority,
+      flushSyncCallbackQueueImpl,
+    );
+  } else {
+    syncQueue.push(callback);
+  }
+
+  return fakeCallbackNode;
 }
 
 function flushSyncCallbackQueueImpl() {

@@ -1,5 +1,6 @@
+import { noTimeout } from "../DOM/ReactDOMHostConfig";
 import { createHostRootFiber } from "./ReactFiber";
-import { NoLanes } from "./ReactFiberLane";
+import { createLaneMap, NoLanePriority, NoLanes, NoTimestamp } from "./ReactFiberLane";
 import { initializedUpdateQueue } from "./ReactUpdateQueue";
 
 export function FiberRootNode(containerInfo, tag) {
@@ -9,13 +10,13 @@ export function FiberRootNode(containerInfo, tag) {
   this.current = null;
   this.pingCache = null;
   this.finishedWork = null;
-  // this.timeoutHandle = noTimeout;
+  this.timeoutHandle = noTimeout;
   this.context = null;
   this.pendingContext = null;
   this.callbackNode = null;
-  // this.callbackPriority = NoLanePriority;
-  // this.eventTimes = createLaneMap(NoLanes);
-  // this.expirationTimes = createLaneMap(NoTimestamp);
+  this.callbackPriority = NoLanePriority;
+  this.eventTimes = createLaneMap(NoLanes);
+  this.expirationTimes = createLaneMap(NoTimestamp);
 
   this.pendingLanes = NoLanes;
   this.suspendedLanes = NoLanes;
@@ -25,7 +26,7 @@ export function FiberRootNode(containerInfo, tag) {
   this.finishedLanes = NoLanes;
 
   this.entangledLanes = NoLanes;
-  // this.entanglements = createLaneMap(NoLanes);
+  this.entanglements = createLaneMap(NoLanes);
 
 
   // if (enableSchedulerTracing) {

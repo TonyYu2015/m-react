@@ -1,8 +1,14 @@
-import { createTextNode, setInitialProperties, updateProperties } from "./ReactDOMComponent";
+import { createTextNode, diffProperties, setInitialProperties, updateProperties } from "./ReactDOMComponent";
 import { updateFiberProps } from "./ReactDOMComponentTree";
 import { COMMENT_NODE, DOCUMENT_FRAGMENT_NODE, DOCUMENT_NODE, ELEMENT_NODE } from "./shared/HTMLNodeType";
 import { createElement } from './ReactDOMComponent';
 import { getChildNamespace } from "./shared/DOMNamespaces";
+
+export const scheduleTimeout =
+  typeof setTimeout === 'function' ? setTimeout : (undefined: any);
+export const cancelTimeout =
+  typeof clearTimeout === 'function' ? clearTimeout : (undefined: any);
+export const noTimeout = -1;
 
 export const supportsMutation = true;
 
@@ -123,6 +129,16 @@ export function getPublicInstance(instance) {
 export function finalizeInitialChildren(domElement, type, props, rootContainerInstance, hostContext) {
   setInitialProperties(domElement, type, props, rootContainerInstance);
   return shouldAutoFocusHostComponent(type, props);
+}
+
+export function prepareUpdate(domElement, type, oldProps, newProps, rootContainerInstance, hostContext) {
+  return diffProperties(
+    domElement,
+    type,
+    oldProps,
+    newProps,
+    rootContainerInstance
+  );
 }
 
 function shouldAutoFocusHostComponent(type, props) {

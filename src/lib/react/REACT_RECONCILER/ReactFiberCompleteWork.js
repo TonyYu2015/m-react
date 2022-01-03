@@ -1,4 +1,4 @@
-import { appendInitialChild, createInstance, createTextInstance, finalizeInitialChildren } from "../DOM/ReactDOMHostConfig";
+import { appendInitialChild, createInstance, createTextInstance, finalizeInitialChildren, prepareUpdate } from "../DOM/ReactDOMHostConfig";
 import { NoFlags, Snapshot, StaticMask, Update } from "./ReactFiberFlags";
 import { getHostContext, getRootHostContainer, popHostContainer, pushHostContainer, pushHostContext } from "./ReactFiberHostContext";
 import { mergeLanes, NoLane, NoLanes } from "./ReactFiberLane";
@@ -6,6 +6,36 @@ import { FunctionComponent, HostComponent, HostRoot, HostText } from "./ReactWor
 
 function updateHostContainer(current, workInProgress) {
   // Noop
+}
+
+function updateHostComponent(current, workInProgress, type, newProps, rootContainerInstance)  {
+  const oldProps = current.memoizedProps;
+  if(oldProps === newProps) {
+    return;
+  }
+
+  const instance = workInProgress.stateNode;
+  const currentHostContext = getHostContext();
+
+  const  updatePayload = prepareUpdate(
+    instance,
+    type,
+    oldProps,
+    newProps,
+    rootContainerInstance,
+    currentHostContext
+  );
+
+  workInProgress.updateQueue = updatePayload;
+  if(updatePayload) {
+    markUpdate(workInProgress);
+  }
+}
+
+function updateHostText(current, workInProgress, oldText, newText) {
+  if(oldText !== newText) {
+    markUpdate(workInProgress);
+  }
 }
 
 function appendAllChildren(parent, workInProgress, needsVisibilityToggle, isHidden) {
@@ -104,7 +134,13 @@ export function completeWork(current, workInProgress, renderLanes) {
       const rootContainerInstance = getRootHostContainer();
       const type = workInProgress.type;
       if(current !== null && workInProgress.stateNode != null) {
-
+        updateHostComponent(
+          current,
+          workInProgress,
+          type,
+          newProps,
+          rootContainerInstance
+        );
       } else {
         const currentHostContext = getHostContext();
         const instance = createInstance(
@@ -132,7 +168,8 @@ export function completeWork(current, workInProgress, renderLanes) {
     case HostText:
       const newText = newProps;
       if(current && workInProgress.stateNode !== null) {
-
+        const oldText = current.memoizedProps;
+        updateHostText(current,  workInProgress, oldText, newText);
       } else {
         const rootContainerInstance = getRootHostContainer();
         const currentHostContext = getHostContext();

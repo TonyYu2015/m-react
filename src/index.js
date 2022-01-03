@@ -10,9 +10,10 @@ function Test(props) {
 
   useEffect(() => {
     console.log("=====>>>>>useEffect");
-    // setTimeout(function() {
-    //   setText(2);
-    // }, 2000);
+    setTimeout(function() {
+      console.log("====>>>>>start update");
+      setText('2');
+    }, 2000);
   }, []);
   console.log("=====>>>>>text", text);
 

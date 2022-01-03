@@ -66,24 +66,24 @@ function ChildReconciler(shouldTrackSideEffects) {
     const key = element.key; 
     const child = currentFirstChild;
 
-    // while(child !== null) {
-    //   if(child.key === key) {
-    //     switch(child.tag) {
-    //       case Fragment:
-    //       case Block: 
-    //       default:
-    //         if(child.elementType === element.type) {
-    //           deleteRemainingChildren(returnFiber, child.sibling);
-    //           const existing = useFiber(child, element.props);
-    //           existing.return = returnFiber;
-    //           return existing;
-    //         }
-    //     }
-    //   } else {
-    //     deleteChild(returnFiber, child);
-    //   }
-    //   child = child.sibling;
-    // }
+    while(child !== null) {
+      if(child.key === key) {
+        switch(child.tag) {
+          default:
+            if(child.elementType === element.type) {
+              deleteRemainingChildren(returnFiber, child.sibling);
+              const existing = useFiber(child, element.props);
+              existing.return = returnFiber;
+              return existing;
+            }
+        }
+        deleteRemainingChildren(returnFiber, child);
+        break;
+      } else {
+        deleteChild(returnFiber, child);
+      }
+      child = child.sibling;
+    }
 
     const created = createFiberFromElement(element, returnFiber.mode, lanes);
     created.return = returnFiber;
@@ -149,6 +149,26 @@ function ChildReconciler(shouldTrackSideEffects) {
 
 const mountChildFibers = ChildReconciler(false);
 export const reconcileChildFibers = ChildReconciler(true);
+
+export function cloneChildFibers(current, workInProgress) {
+  if(workInProgress.child === null) {
+    return;
+  }
+
+  let currentChild = workInProgress.child;
+  let newChild = createWorkInProgress(currentChild, currentChild.pendingProps);
+  workInProgress.child = newChild;
+  newChild.return = workInProgress;
+  while(currentChild.sibling !== null) {
+    currentChild = currentChild.sibling;
+    newChild = newChild.sibling = createWorkInProgress(
+      currentChild,
+      currentChild.pendingProps
+    );
+    newChild.return = workInProgress;
+  }
+  newChild.sibling = null;
+}
 
 export {
   mountChildFibers

@@ -1,4 +1,5 @@
 import {
+  includesSomeLane,
   NoLanes
 } from './ReactFiberLane';
 
@@ -7,19 +8,23 @@ import {
 } from './ReactFiberLazyComponent';
 
 import {
+  bailoutHooks,
   renderWithHooks
 } from './ReactFiberHooks';
 
 import {
+  cloneChildFibers,
   mountChildFibers, reconcileChildFibers
 } from './ReactChildFiber';
 import { ContextProvider, FunctionComponent, HostComponent, HostRoot, HostText, IndeterminateComponent } from './ReactWorkTags';
-import { ContentReset, PerformedWork } from './ReactFiberFlags';
+import { ContentReset, ForceUpdateForLegacySuspense, NoFlags, PerformedWork, Placement } from './ReactFiberFlags';
 import { shouldSetTextContent } from '../DOM/ReactDOMHostConfig';
 import { cloneUpdateQueue, processUpdateQueue } from './ReactUpdateQueue';
 import { disableModulePatternComponents } from '../shared/ReactFeatureFlags';
 import { pushHostContainer, pushHostContext } from './ReactFiberHostContext';
 import { pushTopLevelContextObject } from './ReactFiberContext';
+import { markSkippedUpdateLanes } from './ReactFiberWorkLoop';
+import { prepareToReadContext } from './ReactFiberNewContext';
 
 let didReceiveUpdate = false;
 
@@ -52,8 +57,14 @@ function pushHostRootContext(workInProgress) {
   pushHostContainer(workInProgress, root.containerInfo);
 }
 
-function UpdateFunctionComponent(current, workInProgress, Component, nextProps, renderLanes) {
+function updateFunctionComponent(current, workInProgress, Component, nextProps, renderLanes) {
+  let context;
+  prepareToReadContext(workInProgress, renderLanes);
   let nextChildren = renderWithHooks(current, workInProgress, Component, nextProps, '', renderLanes);
+  if(current !== null && !didReceiveUpdate) {
+    bailoutHooks(current, workInProgress, renderLanes);
+    return bailoutOnAlreadyFinishedWork(current, workInProgress, renderLanes);
+  }
   reconcileChildren(current, workInProgress, nextChildren, renderLanes);
   return workInProgress.child;
 }
@@ -70,11 +81,9 @@ function updateHostRoot(current, workInProgress, renderLanes) {
 
   const nextChildren = nextState.element;
   if(nextChildren === prevChildren) {
-
+    return bailoutOnAlreadyFinishedWork(current, workInProgress, renderLanes);
   }
 
-  const root = workInProgress.stateNode;
-  debugger
   reconcileChildren(current, workInProgress, nextChildren, renderLanes);
   return workInProgress.child;
 
@@ -106,11 +115,15 @@ function updateHostText(current, workInProgress) {
 
 function mountIndeterminateComponent(_current, workInProgress, Component, renderLanes) {
   if(_current !== null) {
-
+    _current.alternate = null;
+    workInProgress.alternate = null;
+    workInProgress.flags |= Placement;
   }  
 
   const props = workInProgress.pendingProps;
   let context;
+
+  prepareToReadContext(workInProgress, renderLanes);
   let value;
   value = renderWithHooks(
     null,
@@ -138,13 +151,51 @@ function mountIndeterminateComponent(_current, workInProgress, Component, render
   }
 }
 
+function bailoutOnAlreadyFinishedWork(current, workInProgress, renderLanes) {
+  if(current !== null) {
+    workInProgress.dependencies = current.dependencies;
+  }
+
+  markSkippedUpdateLanes(workInProgress.lanes);
+
+  if(!includesSomeLane(renderLanes, workInProgress.childLanes)) {
+    return null;
+  } else {
+    cloneChildFibers(current, workInProgress);
+    return  workInProgress.child;
+  }
+
+}
 
 
 function beginWork(current, workInProgress, renderLanes) {
   const updateLanes = workInProgress.lanes;
 
   if(current !== null) {
+    const oldProps = current.memoizedProps;
+    const newProps = workInProgress.pendingProps;
+    if(oldProps !== newProps) {
+      didReceiveUpdate = true;
+    } else if(!includesSomeLane(renderLanes, updateLanes)) {
+      didReceiveUpdate = false;
+      switch(workInProgress.tag) {
+        case HostRoot: {
+          pushHostRootContext(workInProgress);
+          break;
+        }
+        case HostComponent:
+          pushHostContext(workInProgress);
+          break;
+      }
 
+      return bailoutOnAlreadyFinishedWork(current, workInProgress, renderLanes);
+    } else {
+      if((current.flags & ForceUpdateForLegacySuspense) !== NoFlags) {
+        didReceiveUpdate = true;
+      } else {
+        didReceiveUpdate = false;
+      }
+    }
   } else {
     didReceiveUpdate = false;
   }
@@ -165,7 +216,7 @@ function beginWork(current, workInProgress, renderLanes) {
         workInProgress.elementType === Component 
           ? unresolvedProps
           : resolvedDefaultProps(Component, unresolvedProps);
-      return UpdateFunctionComponent(
+      return updateFunctionComponent(
         current,
         workInProgress,
         Component,
@@ -180,6 +231,10 @@ function beginWork(current, workInProgress, renderLanes) {
       return updateHostText(current, workInProgress);
   }
 
+}
+
+export function markWorkInProgressReceivedUpdate() {
+  didReceiveUpdate = true;
 }
 
 export {

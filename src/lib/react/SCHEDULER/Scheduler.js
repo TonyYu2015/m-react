@@ -215,6 +215,7 @@ export {
   NormalPriority as unstable_NormalPriority,
   LowPriority as unstable_LowPriority,
   IdlePriority as unstable_IdlePriority,
+  getCurrentTime as unstable_now,
   unstable_getCurrentPriorityLevel,
   unstable_runWithPriority,
   unstable_scheduleCallback

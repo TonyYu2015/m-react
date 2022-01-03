@@ -2,7 +2,16 @@ import {
   SyncLane,
   NoLanes,
   markRootFinished,
-  mergeLanes
+  mergeLanes,
+  markRootUpdated,
+  NoLanePriority,
+  SyncBatchedLane,
+  markStarvedLanesAsExpired,
+  getNextLanes,
+  returnNextLanesPriority,
+  includesSomeLane,
+  SyncLanePriority,
+  SyncBatchedLanePriority
 } from './ReactFiberLane';
 
 import {
@@ -16,7 +25,10 @@ import {
   NormalPriority as NormalSchedulerPriority,
   NoPriority as NoSchedulerPriority,
   scheduleCallback,
-  flushSyncCallbackQueue
+  flushSyncCallbackQueue,
+  cancelCallback,
+  scheduleSyncCallback,
+  now
 } from './SchedulerWithReactIntegration';
 import { BeforeMutationMask, Callback, Deletion, Incomplete, LayoutMask, MutationMask, NoFlags, Passive, PassiveMask, PerformedWork, Placement, PlacementAndUpdate, Snapshot, Update } from './ReactFiberFlags';
 import {
@@ -31,10 +43,15 @@ import {
 import {
   completeWork
 } from './ReactFiberCompleteWork';
-import { resetAfterCommit } from '../DOM/ReactDOMHostConfig';
+import { cancelTimeout, noTimeout, resetAfterCommit } from '../DOM/ReactDOMHostConfig';
 import { createWorkInProgress } from './ReactFiber';
 import ReactCurrentOwner from '../REACT/ReactCurrentOwner';
-import { decoupleUpdatePriorityFromScheduler } from '../shared/ReactFeatureFlags';
+import { 
+  decoupleUpdatePriorityFromScheduler,
+  deferRenderPhaseUpdateToNextBatch
+ } from '../shared/ReactFeatureFlags';
+import { HostRoot } from './ReactWorkTags';
+import { unwindInterruptedWork } from './ReactFiberUnwindWork';
 let rootDoseHavePassiveEffects = false;
 
 export const NoContext = /*             */ 0b0000000;
@@ -141,14 +158,33 @@ function requestUpdateLane() {
   return SyncLane;
 }
 
+// 找出所有受到本次更新影响的节点
 function markUpdateLaneFromFiberToRoot(sourceFiber, lane) {
+  sourceFiber.lanes = mergeLanes(sourceFiber.lanes, lane);
+  let alternate = sourceFiber.alternate;
+  if(alternate !== null) {
+    alternate.lanes = mergeLanes(alternate.lanes, lane);
+  }
+
   let node = sourceFiber;
   let parent = sourceFiber.return;
   while(parent !== null) {
+    parent.childLanes = mergeLanes(parent.childLanes, lane);
+    alternate = parent.alternate;
+    if(alternate !== null) {
+      alternate.childLanes = mergeLanes(alternate.childLanes, lane);
+    }
+
     node = parent;
     parent = parent.return;
   }
-  return node.stateNode;
+
+  if(node.tag === HostRoot) {
+    const root = node.stateNode;
+    return root;
+  } else {
+    return null;
+  }
 }
 
 function completeUnitWork(unitOfWork) {
@@ -180,7 +216,7 @@ function completeUnitWork(unitOfWork) {
 function performUnitOfWork(unitOfWork) {
   const current = unitOfWork.alternate;
 
-  let next = beginWork(current, unitOfWork);
+  let next = beginWork(current, unitOfWork, subtreeRenderLanes);
   console.log("=====>>>>>afterBeginWork", next);
 
   unitOfWork.memoizedProps = unitOfWork.pendingProps;
@@ -191,6 +227,7 @@ function performUnitOfWork(unitOfWork) {
   } else {
     workInProgress = next;
   }
+  ReactCurrentOwner.current = null;
 
 }
 
@@ -203,6 +240,20 @@ function workLoopSync() {
 function prepareFreshStack(root, lanes) {
   root.finishedWork = null;
   root.finishedLanes = NoLanes;
+
+  const timeoutHandle = root.timeoutHandle;
+  if(timeoutHandle !== noTimeout) {
+    root.timeoutHandle = noTimeout;
+    cancelTimeout(timeoutHandle);
+  }
+
+  if(workInProgress !== null) {
+    let interruptedWork = workInProgress.return;
+    while(interruptedWork !== null) {
+      unwindInterruptedWork(interruptedWork);
+      interruptedWork = interruptedWork.return;
+    }
+  }
 
   workInProgressRoot = root;
   workInProgress = createWorkInProgress(root.current, null);
@@ -245,9 +296,9 @@ function commitRoot(root) {
 }
 
 function commitRootImpl(root, renderPriorityLevel) {
-  // do{
-  //   flushPassiveEffects();
-  // } while(rootWithPendingPassiveEffects !== null)
+  do{
+    flushPassiveEffects();
+  } while(rootWithPendingPassiveEffects !== null)
   const finishedWork = root.finishedWork; 
   const lanes = root.finishedLanes;
 
@@ -345,7 +396,7 @@ function commitRootImpl(root, renderPriorityLevel) {
 
   }
 
-  // ensureRootIsScheduled(root, now());
+  ensureRootIsScheduled(root, now());
 
   if((executionContext & LegacyUnbatchedContext) !== NoContext) {
     return null;
@@ -358,7 +409,57 @@ function commitRootImpl(root, renderPriorityLevel) {
 }
 
 function  ensureRootIsScheduled(root, currentTime) {
+  const existingCallbackNode = root.callbackNode;
+  markStarvedLanesAsExpired(root, currentTime);
 
+  const nextLanes = getNextLanes(
+    root,
+    root === workInProgressRoot ? workInProgressRootRenderLanes : NoLanes
+  );
+  
+  const newCallbackPriority = returnNextLanesPriority();
+
+  if(nextLanes === NoLanes) {
+    if(existingCallbackNode !== null) {
+      cancelCallback(existingCallbackNode);
+      root.callbackNode = null;
+      root.callbackPriority = NoLanePriority;
+    }
+    return;
+  }
+
+  if(existingCallbackNode !== null) {
+    const existingCallbackPriority = root.callbackPriority;
+    if(existingCallbackPriority === newCallbackPriority) {
+      return;
+    }
+
+    cancelCallback(existingCallbackNode);
+  }
+
+  let newCallbackNode;
+  if(newCallbackPriority === SyncLanePriority) {
+    newCallbackNode = scheduleSyncCallback(
+      performSyncWorkOnRoot.bind(null, root)
+    );
+  } else if(newCallbackPriority === SyncBatchedLanePriority) {
+    newCallbackNode = scheduleCallback(
+      ImmediateSchedulerPriority,
+      performSyncWorkOnRoot.bind(null, root)
+    )
+  } else {
+    // concurrent
+  }
+
+  root.callbackPriority = newCallbackPriority;
+  root.callbackNode = newCallbackNode;
+}
+
+export function markSkippedUpdateLanes(lane) {
+  workInProgressRootSkippedLanes = mergeLanes(
+    lane,
+    workInProgressRootSkippedLanes
+  );
 }
 
 export function schedulePassiveEffectCallback() {
@@ -478,12 +579,12 @@ function commitMutationEffectsImpl(fiber, root, renderPriorityLevel) {
       {
         commitPlacement(fiber);
         fiber.flags &= ~Placement;
-        const current = root.alternate;
+        const current = fiber.alternate;
         commitWork(current, fiber);
         break;
       }
     case Update: {
-      const current = root.alternate;
+      const current = fiber.alternate;
       commitWork(current, fiber);
       break;
     }
@@ -510,36 +611,78 @@ function commitLayoutEffects(root, committedLanes) {
 // }
 
 function performSyncWorkOnRoot(root) {
-  // flushPassiveEffects();
+  flushPassiveEffects();
   let lanes;
   let existStatus;
-  // lanes = getNextLanes(root, NoLanes);
-  lanes = NoLanes;
-  existStatus = renderRootSync(root, lanes);
+
+  if(
+    root === workInProgressRoot
+    && includesSomeLane(root.exporedLanes, workInProgressRootRenderLanes)
+  ) {
+    lanes = workInProgressRootRenderLanes;
+    existStatus = renderRootSync(root, lanes);
+    if(includesSomeLane(
+      workInProgressRootIncludedLanes,
+      workInProgressRootUpdatedLanes
+    )) {
+      lanes = getNextLanes(root, lanes);
+      existStatus = renderRootSync(root, lanes);
+    }
+  } else {
+    lanes = getNextLanes(root, NoLanes);
+    existStatus = renderRootSync(root, lanes);
+  }
+
 
   const finishedWork = root.current.alternate;
   root.finishedWork = finishedWork;
   root.finishedLanes = lanes;
   console.log("====>>>>beforeCommitRoot", root);
   commitRoot(root);
+  ensureRootIsScheduled(root, now());
 
   return null;
 }
 
 function scheduleUpdateOnFiber(fiber, lane, eventTime) {
+  debugger;
   const root = markUpdateLaneFromFiberToRoot(fiber, lane);
-  // markRootUpdated(root, lane, eventTime);
+  markRootUpdated(root, lane, eventTime);
+  if(root === workInProgressRoot) {
+    if(deferRenderPhaseUpdateToNextBatch || (executionContext & RenderContext) === NoContext) {
+      workInProgressRootUpdatedLanes = mergeLanes(
+        workInProgressRootUpdatedLanes,
+        lane
+      );
+    }
+  }
+
   const priorityLevel = getCurrentPriorityLevel();
   if(lane === SyncLane) {
     if(
       (executionContext & LegacyUnbatchedContext) !== NoContext &&
       (executionContext & (RenderContext | CommitContext)) === NoContext
     ) {
-      performSyncWorkOnRoot(root, lane);
+      performSyncWorkOnRoot(root);
     } else {
-      // ensureRootIsScheduled(root, eventTime);
+      ensureRootIsScheduled(root, eventTime);
+      // schedulePendingInteractions(root, lane);
+      if(executionContext === NoContext) {
+        resetRenderTimer();
+        flushSyncCallbackQueue();
+      }
     }
   }
+
+  mostRecentlyUpdatedRoot = root;
+}
+
+function resetRenderTimer() {
+  workInProgressRootRenderTargetTime = now() + RENDER_TIMEOUT_MS;
+}
+
+function schedulePendingInteractions(root, lane) {
+
 }
 
 function detachFiberAfterEffects(fiber) {
