@@ -5,14 +5,15 @@ window.__DEV__= true;
 window.__PROFILE__= false;
 window.__EXPERIMENTAL__= true;
 
-function Test(props) {
+// 添加状态与更新
+function UpdateDom(props) {
   const [text, setText] = useState('1');
 
   useEffect(() => {
     console.log("=====>>>>>useEffect");
     setTimeout(function() {
       console.log("====>>>>>start update");
-      setText('2');
+      setText(222);
     }, 2000);
   }, []);
   console.log("=====>>>>>text", text);
@@ -26,5 +27,32 @@ function Test(props) {
   )
 }
 
-render(createElement(Test), document.getElementById('root'));
+// 首次渲染
+function FirstMount(props) {
+  return (
+    createElement(
+      'ul',
+      null,
+      [
+        createElement(
+          'li',
+          null,
+          '0'
+        ),
+        createElement(
+          'li',
+          null,
+          '1'
+        ),
+        createElement(
+          'li',
+          null,
+          '2'
+        ),
+      ]
+    )
+  )
+}
+
+render(createElement(FirstMount), document.getElementById('root'));
 

@@ -76,6 +76,7 @@ function updateHostRoot(current, workInProgress, renderLanes) {
   const prevState = workInProgress.memoizedState;
   const prevChildren = prevState !== null ? prevState.element: null;
   cloneUpdateQueue(current, workInProgress);
+  // 处理更新队列事物
   processUpdateQueue(workInProgress, nexrProps, null, renderLanes);
   const nextState = workInProgress.memoizedState;
 
@@ -171,10 +172,13 @@ function bailoutOnAlreadyFinishedWork(current, workInProgress, renderLanes) {
 function beginWork(current, workInProgress, renderLanes) {
   const updateLanes = workInProgress.lanes;
 
+  // 更新过程中，current不为null
   if(current !== null) {
     const oldProps = current.memoizedProps;
     const newProps = workInProgress.pendingProps;
+    // 比较新旧props
     if(oldProps !== newProps) {
+      // 当前fiber需要更新
       didReceiveUpdate = true;
     } else if(!includesSomeLane(renderLanes, updateLanes)) {
       didReceiveUpdate = false;
@@ -188,6 +192,7 @@ function beginWork(current, workInProgress, renderLanes) {
           break;
       }
 
+      // 判断子fiber是否需要更新
       return bailoutOnAlreadyFinishedWork(current, workInProgress, renderLanes);
     } else {
       if((current.flags & ForceUpdateForLegacySuspense) !== NoFlags) {
@@ -199,8 +204,11 @@ function beginWork(current, workInProgress, renderLanes) {
   } else {
     didReceiveUpdate = false;
   }
+
+  // 重制当前过程fiber优先级
   workInProgress.lanes = NoLanes;
 
+  // 针对不同的fiber类型进行更新
   switch(workInProgress.tag) {
     case IndeterminateComponent:
       return mountIndeterminateComponent(
@@ -216,6 +224,7 @@ function beginWork(current, workInProgress, renderLanes) {
         workInProgress.elementType === Component 
           ? unresolvedProps
           : resolvedDefaultProps(Component, unresolvedProps);
+      // 执行Function组件
       return updateFunctionComponent(
         current,
         workInProgress,

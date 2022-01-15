@@ -216,12 +216,14 @@ function completeUnitWork(unitOfWork) {
 function performUnitOfWork(unitOfWork) {
   const current = unitOfWork.alternate;
 
+  // 开始向下深入
   let next = beginWork(current, unitOfWork, subtreeRenderLanes);
   console.log("=====>>>>>afterBeginWork", next);
 
   unitOfWork.memoizedProps = unitOfWork.pendingProps;
 
   if(next === null) {
+    // 当前无子节点了，执行完成工作
     completeUnitWork(unitOfWork);
     console.log("=====>>>>>afterCompleteWork", unitOfWork);
   } else {
@@ -232,12 +234,15 @@ function performUnitOfWork(unitOfWork) {
 }
 
 function workLoopSync() {
+  // 深度优先遍历fiber树，直至返回到最顶层
   while(workInProgress !== null) {
     performUnitOfWork(workInProgress);
   }
 }
 
+// 重制以及创建新的当前过程fiber
 function prepareFreshStack(root, lanes) {
+  // 重制上次render阶段的状态
   root.finishedWork = null;
   root.finishedLanes = NoLanes;
 
@@ -255,8 +260,11 @@ function prepareFreshStack(root, lanes) {
     }
   }
 
+  // 创建运行过程中的全局变量
   workInProgressRoot = root;
+  // 创建当前过程Fiber节点
   workInProgress = createWorkInProgress(root.current, null);
+  // 当前过程优先级
   workInProgressRootRenderLanes = subtreeRenderLanes = workInProgressRootIncludedLanes = lanes;
   workInProgressRootExitStatus = RootIncomplete;
   workInProgressRootFatalError = null;
@@ -273,6 +281,7 @@ function renderRootSync(root, lanes) {
   }
   do{
     try {
+      // 进入Render阶段
       workLoopSync();
       break;
     } catch (err) {
@@ -280,7 +289,9 @@ function renderRootSync(root, lanes) {
     }
   } while(true)
 
+  // 恢复之前执行上下文
   executionContext = prevExecutionContext;
+  // 重制当前过程Root和优先级以便下次重新创建
   workInProgressRoot = null;
   workInProgressRootRenderLanes = NoLanes;
   return workInProgressRootExitStatus;
@@ -645,7 +656,6 @@ function performSyncWorkOnRoot(root) {
 }
 
 function scheduleUpdateOnFiber(fiber, lane, eventTime) {
-  debugger;
   const root = markUpdateLaneFromFiberToRoot(fiber, lane);
   markRootUpdated(root, lane, eventTime);
   if(root === workInProgressRoot) {

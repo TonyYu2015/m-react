@@ -39,7 +39,7 @@ function updateHostText(current, workInProgress, oldText, newText) {
 }
 
 function appendAllChildren(parent, workInProgress, needsVisibilityToggle, isHidden) {
-  const node = workInProgress.child;
+  let node = workInProgress.child;
   while(node !== null) {
     if(node.tag === HostComponent || node.tag === HostText) {
       appendInitialChild(parent, node.stateNode);

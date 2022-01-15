@@ -55,6 +55,7 @@ function dispatchAction(fiber, queue, action) {
     next: null
   };
 
+  // 拆开hook上的队列，将新增的update添加到队列末尾
   const pending = queue.pending;
   if(pending === null) {
     update.next = update;

@@ -78,7 +78,7 @@ export function processUpdateQueue(workInProgress, props, instance, renderLanes)
   let pendingQueue = queue.shared.pending;
   if(pendingQueue !== null) {
     queue.shared.pending = null;
-    
+    // 剪开pendingQueue(触发了的更新), 并对接baseUpdate(遗留的低优先级的更新)
     const lastPendingUpdate = pendingQueue;
     const firstPendingUpdate = lastPendingUpdate.next;
     lastPendingUpdate.next = null;
