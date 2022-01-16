@@ -6,6 +6,7 @@ import {
 import {
   LegacyRoot
 } from '../REACT_RECONCILER/ReactRootTags';
+import { enableEagerRootListeners } from '../shared/ReactFeatureFlags';
 import { markContainerAsRoot } from './ReactDOMComponentTree';
 
 
@@ -21,6 +22,11 @@ function createRootImpl(container, tag, options) {
   const root = createContainer(container, tag);
   markContainerAsRoot(root.current, container);
   const containerNodeType = container.nodeType; 
+
+  if(enableEagerRootListeners) {
+    const rootContainerElement = container;
+    listenToAllSupportedEvents(rootContainerElement);
+  }
 
   return root;
 }
