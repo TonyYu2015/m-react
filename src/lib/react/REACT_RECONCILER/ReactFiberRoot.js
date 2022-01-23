@@ -41,6 +41,7 @@ export function createFiberRoot(containerInfo, tag) {
   const uninitializedFiber = createHostRootFiber(tag);
   root.current = uninitializedFiber;
   uninitializedFiber.stateNode = root;
+  // 初始化更新队列
   initializedUpdateQueue(uninitializedFiber);
   return root;
 }

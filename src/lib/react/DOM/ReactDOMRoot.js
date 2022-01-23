@@ -21,12 +21,12 @@ function ReactDOMBlockRoot(container, tag, options) {
 function createRootImpl(container, tag, options) {
   const root = createContainer(container, tag);
   markContainerAsRoot(root.current, container);
-  const containerNodeType = container.nodeType; 
+  // const containerNodeType = container.nodeType; 
 
-  if(enableEagerRootListeners) {
-    const rootContainerElement = container;
-    listenToAllSupportedEvents(rootContainerElement);
-  }
+  // if(enableEagerRootListeners) {
+  //   const rootContainerElement = container;
+  //   listenToAllSupportedEvents(rootContainerElement);
+  // }
 
   return root;
 }
