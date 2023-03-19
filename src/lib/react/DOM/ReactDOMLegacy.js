@@ -40,7 +40,7 @@ export function render(children, container) {
       updateContainer(children, fiberRoot);
     });
   } else {
-    // 后续更新
+    // 后续更新，一般用的不多
     updateContainer();
   }
 }

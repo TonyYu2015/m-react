@@ -1,0 +1,89 @@
+<mxfile host="65bd71144e">
+    <diagram id="HBxvB6sWnNbkhIfKbZTo" name="Page-1">
+        <mxGraphModel dx="833" dy="523" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" background="#ffffff" math="0" shadow="1">
+            <root>
+                <mxCell id="0"/>
+                <mxCell id="1" parent="0"/>
+                <mxCell id="4" style="edgeStyle=none;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;exitX=0;exitY=0.5;exitDx=0;exitDy=0;sketch=1;curveFitting=1;jiggle=2;" edge="1" parent="1" source="2" target="3">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="470" y="290"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="5" value="curret" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontStyle=1;sketch=1;curveFitting=1;jiggle=2;" vertex="1" connectable="0" parent="4">
+                    <mxGeometry x="-0.2199" y="1" relative="1" as="geometry">
+                        <mxPoint as="offset"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="2" value="FiberRoot" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#60a917;fontColor=#030303;strokeColor=#2D7600;sketch=1;curveFitting=1;jiggle=2;fontStyle=1" vertex="1" parent="1">
+                    <mxGeometry x="520" y="190" width="94" height="50" as="geometry"/>
+                </mxCell>
+                <mxCell id="6" value="statenode" style="edgeStyle=none;html=1;entryX=1;entryY=0.5;entryDx=0;entryDy=0;exitX=1;exitY=0.5;exitDx=0;exitDy=0;fontStyle=1;sketch=1;curveFitting=1;jiggle=2;" edge="1" parent="1" source="3" target="2">
+                    <mxGeometry x="0.2312" y="-1" relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="660" y="300"/>
+                        </Array>
+                        <mxPoint as="offset"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="3" value="HostRootFiber" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#60a917;fontColor=#030303;strokeColor=#2D7600;sketch=1;curveFitting=1;jiggle=2;fontStyle=1" vertex="1" parent="1">
+                    <mxGeometry x="514" y="360" width="100" height="50" as="geometry"/>
+                </mxCell>
+                <mxCell id="8" style="edgeStyle=none;html=1;sketch=1;curveFitting=1;jiggle=2;" edge="1" parent="1" source="7" target="2">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="9" value="internalContainerInstanceKey" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontStyle=1;sketch=1;curveFitting=1;jiggle=2;" vertex="1" connectable="0" parent="8">
+                    <mxGeometry x="-0.1375" y="-3" relative="1" as="geometry">
+                        <mxPoint x="1" y="-18" as="offset"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="7" value="div#root" style="text;html=1;strokeColor=#005700;fillColor=#008a00;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontColor=#030303;sketch=1;curveFitting=1;jiggle=2;fontStyle=1" vertex="1" parent="1">
+                    <mxGeometry x="520" y="80" width="70" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="12" style="edgeStyle=none;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;sketch=1;curveFitting=1;jiggle=2;" edge="1" parent="1" source="10" target="2">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="300" y="165"/>
+                            <mxPoint x="300" y="210"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="10" value="ReactDOMBlockingRoot" style="text;html=1;strokeColor=#2D7600;fillColor=#60a917;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontColor=#050505;sketch=1;curveFitting=1;jiggle=2;fontStyle=1" vertex="1" parent="1">
+                    <mxGeometry x="105" y="140" width="140" height="50" as="geometry"/>
+                </mxCell>
+                <mxCell id="13" style="edgeStyle=none;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;sketch=1;curveFitting=1;jiggle=2;" edge="1" parent="1" source="11" target="2">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="300" y="240"/>
+                            <mxPoint x="300" y="210"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="14" value="_internalRoot" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontStyle=1;sketch=1;curveFitting=1;jiggle=2;" vertex="1" connectable="0" parent="13">
+                    <mxGeometry x="0.286" y="-2" relative="1" as="geometry">
+                        <mxPoint as="offset"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="11" value="ReactDOMRoot" style="text;html=1;strokeColor=#2D7600;fillColor=#60a917;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontColor=#000000;sketch=1;curveFitting=1;jiggle=2;fontStyle=1" vertex="1" parent="1">
+                    <mxGeometry x="125" y="220" width="100" height="40" as="geometry"/>
+                </mxCell>
+                <mxCell id="19" value="" style="edgeStyle=none;sketch=1;hachureGap=4;jiggle=2;curveFitting=1;html=1;entryX=1;entryY=0.5;entryDx=0;entryDy=0;labelBorderColor=none;fontFamily=Architects Daughter;fontSource=https%3A%2F%2Ffonts.googleapis.com%2Fcss%3Ffamily%3DArchitects%2BDaughter;fontSize=16;fontColor=#FFFFFF;endArrow=none;" edge="1" parent="1" source="7" target="10">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="520" y="102.90322580645159" as="sourcePoint"/>
+                        <mxPoint x="370" y="130" as="targetPoint"/>
+                        <Array as="points">
+                            <mxPoint x="410" y="110"/>
+                            <mxPoint x="400" y="120"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="26" value="&lt;span style=&quot;font-size: 11px; font-weight: 700;&quot;&gt;_reactRootContainer​(legacy)&lt;/span&gt;" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontSize=20;fontFamily=Helvetica;fontColor=#000000;labelBackgroundColor=#FFFFFF;" vertex="1" connectable="0" parent="19">
+                    <mxGeometry x="0.2166" y="1" relative="1" as="geometry">
+                        <mxPoint x="-3" y="-5" as="offset"/>
+                    </mxGeometry>
+                </mxCell>
+            </root>
+        </mxGraphModel>
+    </diagram>
+</mxfile>

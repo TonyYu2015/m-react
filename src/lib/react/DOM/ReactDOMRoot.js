@@ -23,9 +23,17 @@ function createRootImpl(container, tag, options) {
   markContainerAsRoot(root.current, container);
   // const containerNodeType = container.nodeType; 
 
-  // if(enableEagerRootListeners) {
-  //   const rootContainerElement = container;
+  // if (enableEagerRootListeners) {
+  //   const rootContainerElement =
+  //     container.nodeType === COMMENT_NODE ? container.parentNode : container;
   //   listenToAllSupportedEvents(rootContainerElement);
+  // } else {
+  //   if (
+  //     containerNodeType !== DOCUMENT_FRAGMENT_NODE &&
+  //     containerNodeType !== DOCUMENT_NODE
+  //   ) {
+  //     ensureListeningTo(container, 'onMouseEnter', null);
+  //   }
   // }
 
   return root;

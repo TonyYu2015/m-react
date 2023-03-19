@@ -216,16 +216,12 @@ function completeUnitWork(unitOfWork) {
 function performUnitOfWork(unitOfWork) {
   const current = unitOfWork.alternate;
 
-  // 开始向下深入
   let next = beginWork(current, unitOfWork, subtreeRenderLanes);
-  console.log("=====>>>>>afterBeginWork", next);
 
   unitOfWork.memoizedProps = unitOfWork.pendingProps;
 
   if(next === null) {
-    // 当前无子节点了，执行完成工作
     completeUnitWork(unitOfWork);
-    console.log("=====>>>>>afterCompleteWork", unitOfWork);
   } else {
     workInProgress = next;
   }

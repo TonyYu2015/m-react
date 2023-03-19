@@ -29,28 +29,47 @@ function UpdateDom(props) {
 
 // 首次渲染
 function FirstMount(props) {
+  const [count, setCount] = useState(0);
+
+  useEffect(() => {
+    // some effect
+    console.log("===>>>>effect: ", count);
+    setTimeout(function() {
+      console.log("====>>>>>start setTimeout update");
+      setCount(2);
+    }, 2000);
+    return () => {
+      console.log("====>>>>>destory");
+    }
+  }, [count]);
+  
   return (
-    createElement(
-      'ul',
-      null,
-      [
-        createElement(
-          'li',
-          null,
-          '0'
-        ),
-        createElement(
-          'li',
-          null,
-          '1'
-        ),
-        createElement(
-          'li',
-          null,
-          '2'
-        ),
-      ]
-    )
+    createElement('div', {
+      style: {
+        border: "1px solid #000"
+      }
+    }, `${count}`)
+    // createElement(
+    //   'ul',
+    //   null,
+    //   [
+    //     createElement(
+    //       'li',
+    //       null,
+    //       '0'
+    //     ),
+    //     createElement(
+    //       'li',
+    //       null,
+    //       '1'
+    //     ),
+    //     createElement(
+    //       'li',
+    //       null,
+    //       '2'
+    //     ),
+    //   ]
+    // )
   )
 }
 

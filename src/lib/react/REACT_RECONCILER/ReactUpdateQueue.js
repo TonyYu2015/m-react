@@ -78,7 +78,9 @@ export function processUpdateQueue(workInProgress, props, instance, renderLanes)
   let pendingQueue = queue.shared.pending;
   if(pendingQueue !== null) {
     queue.shared.pending = null;
-    // 剪开pendingQueue(触发了的更新), 并对接baseUpdate(遗留的低优先级的更新)
+    // 剪开pendingQueue(触发了的更新), 并对接baseUpdate
+    // if lastBaseUpdate exist, then connect the firstPendingUpdate to the lastBaseUpdate or
+    // assign the firstPendingUpdate to the firstBaseUpdate
     const lastPendingUpdate = pendingQueue;
     const firstPendingUpdate = lastPendingUpdate.next;
     lastPendingUpdate.next = null;
@@ -91,6 +93,7 @@ export function processUpdateQueue(workInProgress, props, instance, renderLanes)
 
     const current = workInProgress.alternate;
     if(current !== null) {
+      // the same logic as connect the pendingQueue to the baseUpdateQueue
       const currentQueue = current.updateQueue;
       const currentLastBaseUpdate = currentQueue.lastBaseUpdate;
       if(currentLastBaseUpdate !== lastBaseUpdate) {
@@ -103,6 +106,9 @@ export function processUpdateQueue(workInProgress, props, instance, renderLanes)
       }
     }
   } 
+  // after the logic above, the two updateQueues in the current and workInProgress will like this:
+  // current: firstBaseUpdate -> lastBaseUpdate -> firstPendingUpdate -> lastPendingUpdate
+  // workInProgress: firstBaseUpdate -> lastBaseUpdate -> firstPendingUpdate -> lastPendingUpdate
 
   if(firstBaseUpdate !== null) {
     let newState = queue.baseState;

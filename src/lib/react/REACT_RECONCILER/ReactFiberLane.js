@@ -1,3 +1,4 @@
+// Lane优先级-共16个等级
 export const SyncLanePriority = 15;
 export const SyncBatchedLanePriority = 14;
 
