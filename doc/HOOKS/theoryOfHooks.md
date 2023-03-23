@@ -1,22 +1,43 @@
-# Introduction
-We know hooks had been a very important part of react after it was appended into react, and also run very well in our daliy develop tasks. I think we can use it much better if we know the theory of how the hooks work in the process.
-
-##  Properties in Fiber related to hooks
+Properties in Fiber related to hooks
 ```
-WorkInProgressHook: Hook, will be set null after FunctionComponent run
-currentHook: Hook, 
+WorkInProgressHook: Hook, // will be set null after FunctionComponent run
+currentHook: Hook,
 
-Hook = {
-    memoizedState: any, stored state
-    baseState: any, initial state
-    baseQueue: Queue,
-    queue: Queue,
-    next: Hook, next hook in the  hook linked list
+type Update<S, A> = {
+  lane: Lane,
+  action: A,
+  eagerReducer: ((S, A) => S) | null,
+  eagerState: S | null,
+  next: Update<S, A>,
+  priority?: ReactPriorityLevel,
+};
+
+type UpdateQueue<S, A> = {
+  pending: Update<S, A> | null,
+  dispatch: (A => mixed) | null,
+  lastRenderedReducer: ((S, A) => S) | null,
+  lastRenderedState: S | null,
+};
+
+type Hook = {
+    memoizedState: any, // stored state
+    baseState: any, // initial state
+    baseQueue: Update,
+    queue: UpdateQueue,
+    next: Hook, // next hook in the  hook linked list
 }
 
-Fiber = {
-    memoizedState: Hook,  hook linked list (include all hooks)
-    updateQueue: Hook, effect linked list (only effect hooks), will be used in the commit stage
+export type Effect = {
+  tag: HookFlags,
+  create: () => (() => void) | void,
+  destroy: (() => void) | void,
+  deps: Array<mixed> | null,
+  next: Effect,
+};
+
+type Fiber = {
+    memoizedState: Hook,  // hook linked list (include all hooks)
+    updateQueue: Hook, // effect linked list (only effect hooks), will be used in the commit stage
 }
 ```
 `renderWithHooks` is the render function of FunctionComponent, the logic inside the function is very clear. beofre the 
@@ -39,79 +60,36 @@ function renderWithHooks(
   workInProgress.updateQueue = null;
   workInProgress.lanes = NoLanes;
 
-    // assign different dispatcher function in different stages (mount and update)
-    ReactCurrentDispatcher.current =
-      current === null || current.memoizedState === null
-        ? HooksDispatcherOnMount
-        : HooksDispatcherOnUpdate;
+  // assign different dispatcher function in different stages (mount and update)
+  ReactCurrentDispatcher.current =
+    current === null || current.memoizedState === null
+      ? HooksDispatcherOnMount
+      : HooksDispatcherOnUpdate;
 
   // run the FunctionComponent
   let children = Component(props, secondArg);
-
-  // Check if there was a render phase update
-  if (didScheduleRenderPhaseUpdateDuringThisPass) {
-    // Keep rendering in a loop for as long as render phase updates continue to
-    // be scheduled. Use a counter to prevent infinite loops.
-    let numberOfReRenders: number = 0;
-    do {
-      didScheduleRenderPhaseUpdateDuringThisPass = false;
-      invariant(
-        numberOfReRenders < RE_RENDER_LIMIT,
-        'Too many re-renders. React limits the number of renders to prevent ' +
-          'an infinite loop.',
-      );
-
-      numberOfReRenders += 1;
-
-      // Start over from the beginning of the list
-      currentHook = null;
-      workInProgressHook = null;
-
-      workInProgress.updateQueue = null;
-
-      ReactCurrentDispatcher.current = __DEV__
-        ? HooksDispatcherOnRerenderInDEV
-        : HooksDispatcherOnRerender;
-
-      children = Component(props, secondArg);
-    } while (didScheduleRenderPhaseUpdateDuringThisPass);
-  }
 
   // We can assume the previous dispatcher is always this one, since we set it
   // at the beginning of the render phase and there's no re-entrancy.
   ReactCurrentDispatcher.current = ContextOnlyDispatcher;
 
-  // This check uses currentHook so that it works the same in DEV and prod bundles.
-  // hookTypesDev could catch more cases (e.g. context) but only in DEV bundles.
-  const didRenderTooFewHooks =
-    currentHook !== null && currentHook.next !== null;
-
   renderLanes = NoLanes;
-  currentlyRenderingFiber = (null: any);
+  currentlyRenderingFiber = null;
 
   currentHook = null;
   workInProgressHook = null;
-
-  didScheduleRenderPhaseUpdate = false;
-
-  invariant(
-    !didRenderTooFewHooks,
-    'Rendered fewer hooks than expected. This may be caused by an accidental ' +
-      'early return statement.',
-  );
 
   return children;
 }
 ```
 
-inside the FunctionComponent run:
+### Inside the FunctionComponent
 
-before introduce the hooks function, we should know `mountWorkInProgressHook` and `updateWorkInProgressHook`, the two 
+Before introduce the hooks function, we should know `mountWorkInProgressHook` and `updateWorkInProgressHook`, the two 
 functions will be called in mount and update stages respectivly, they will return a new hook or an existed hook.
 
 very simple in the mount function, create a new hook, assign it to workInProgressHook and fiber.memoizedState if not existed,
 or assign it to the current workInProgressHook's next, and move the workInProgressHook to the new hook.
-
 
 ```
 function mountWorkInProgressHook(): Hook {
@@ -138,6 +116,7 @@ function mountWorkInProgressHook(): Hook {
 
 the update function will move workInProgressHook and currentHook to next.
 
+### `updateWorkInProgressHook`
 ```
 function updateWorkInProgressHook(): Hook {
   // This function is used both for updates and for re-renders triggered by a
@@ -206,7 +185,7 @@ function updateWorkInProgressHook(): Hook {
 list based on the currentHook linked list, so it may confuse the order if a hook is not the same in the same place. 
 2. and don'tupdate the state inside the FunctionComponent as much as possible to avoid reach the limition of render times(25).
 
-1. mount stage
+## mount stage
 
 `useState` will be treated as `mountState`, here is the function
 
@@ -238,39 +217,10 @@ function mountState<S>(
   return [hook.memoizedState, dispatch];
 }
 ```
-`useEffect` will be treated as `mountEffect`
-
-```
-function mountEffect(
-  create: () => (() => void) | void,
-  deps: Array<mixed> | void | null,
-): void {
-    // ignore the dev code
-    return mountEffectImpl(
-      PassiveEffect | PassiveStaticEffect,
-      HookPassive,
-      create,
-      deps,
-    );
-}
-```
-
-```
-function mountEffectImpl(fiberFlags, hookFlags, create, deps): void {
-  const hook = mountWorkInProgressHook();
-  const nextDeps = deps === undefined ? null : deps;
-  currentlyRenderingFiber.flags |= fiberFlags;
-  hook.memoizedState = pushEffect(
-    HookHasEffect | hookFlags,
-    create,
-    undefined,
-    nextDeps,
-  );
-}
-```
 
 
-2. update stage
+## update stage
+
 `useState` will be treated as `updateState`
 ```
 function updateState<S>(
@@ -439,7 +389,7 @@ function updateEffectImpl(fiberFlags, hookFlags, create, deps): void {
 }
 ```
 
-`pushEffect` will be used both in mount and update stages.
+## `pushEffect` will be used both in mount and update stages.
 ```
 function pushEffect(tag, create, destroy, deps) {
   const effect: Effect = {

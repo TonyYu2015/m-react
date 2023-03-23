@@ -1,8 +1,8 @@
-we know if we want to update a FunctionComponent, will use a function returned from state hooks, here we introduce it.
+>we know if we want to update a FunctionComponent, will use a function returned from state hooks, here we introduce it.
 
-all the update function from state hooks will call a function named `dispatchAction`.
+All the update function from state hooks will call a function named `dispatchAction`.
 
-// ignore some dev and unrelated code.
+>ignore some dev and unrelated code.
 ```
 function dispatchAction<S, A>(
   fiber: Fiber,

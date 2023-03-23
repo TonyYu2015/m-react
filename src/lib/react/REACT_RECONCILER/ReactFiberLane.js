@@ -65,11 +65,11 @@ let currentUpdateLanePriority = NoLanePriority;
 
 
 export function getCurrentUpdateLanePriority() {
-  return  currentUpdateLanePriority;
+  return currentUpdateLanePriority;
 }
 
 export function setCurrentUpdateLanePriority(newLanePriority) {
-  currentUpdateLanePriority =  newLanePriority;
+  currentUpdateLanePriority = newLanePriority;
 }
 
 export function mergeLanes(a, b) {
@@ -90,15 +90,15 @@ export function createLaneMap(initial) {
   return laneMap;
 }
 
-export  function markRootFinished(root, remainingLanes) {
+export function markRootFinished(root, remainingLanes) {
   const noLongerPendingLanes = root.pendingLanes & ~remainingLanes;
-  root.pendingLanes  =  remainingLanes;
+  root.pendingLanes = remainingLanes;
 
   root.suspendedLanes = 0;
   root.pingedLanes = 0;
 
   root.expiredLanes &= remainingLanes;
-  root.mutableReadLanes  &= remainingLanes;
+  root.mutableReadLanes &= remainingLanes;
 
   root.entangledLanes &= remainingLanes;
 
@@ -106,18 +106,18 @@ export  function markRootFinished(root, remainingLanes) {
   const eventTimes = root.eventTimes;
   const expirationTimes = root.expirationTimes;
 
-    // Clear the lanes that no longer have pending work
-    let lanes = noLongerPendingLanes;
-    while (lanes > 0) {
-      const index = pickArbitraryLaneIndex(lanes);
-      const lane = 1 << index;
-  
-      entanglements[index] = NoLanes;
-      eventTimes[index] = NoTimestamp;
-      expirationTimes[index] = NoTimestamp;
-  
-      lanes &= ~lane;
-    }
+  // Clear the lanes that no longer have pending work
+  let lanes = noLongerPendingLanes;
+  while (lanes > 0) {
+    const index = pickArbitraryLaneIndex(lanes);
+    const lane = 1 << index;
+
+    entanglements[index] = NoLanes;
+    eventTimes[index] = NoTimestamp;
+    expirationTimes[index] = NoTimestamp;
+
+    lanes &= ~lane;
+  }
 }
 
 export function markRootUpdated(root, updateLane, eventTime) {
@@ -134,20 +134,20 @@ export function markRootUpdated(root, updateLane, eventTime) {
 
 export function markStarvedLanesAsExpired(root, currentTime) {
   const pendingLanes = root.pendingLanes;
-  const pingedLanes =  root.pingedLanes;
+  const pingedLanes = root.pingedLanes;
   const expirationTimes = root.expirationTimes;
 
   let lanes = pendingLanes;
-  while(lanes > 0) {
+  while (lanes > 0) {
     const index = pickArbitraryLaneIndex(lanes);
     const lane = 1 << index;
 
     const expirationTime = expirationTimes[index];
-    if(expirationTime === NoTimestamp) {
-      if((lane & pingedLanes) !== NoLanes) {
+    if (expirationTime === NoTimestamp) {
+      if ((lane & pingedLanes) !== NoLanes) {
         expirationTimes[index] = computeExpirationTime(lane, currentTime);
       }
-    } else if(expirationTime <= currentTime) {
+    } else if (expirationTime <= currentTime) {
       root.expiredLanes |= lane;
     }
     lanes &= ~lane;
@@ -155,9 +155,58 @@ export function markStarvedLanesAsExpired(root, currentTime) {
 
 }
 
+export function schedulerPriorityToLanePriority(
+  schedulerPriorityLevel
+) {
+  switch (schedulerPriorityLevel) {
+    case ImmediateSchedulerPriority:
+      return SyncLanePriority;
+    case UserBlockingSchedulerPriority:
+      return InputContinuousLanePriority;
+    case NormalSchedulerPriority:
+    case LowSchedulerPriority:
+      // TODO: Handle LowSchedulerPriority, somehow. Maybe the same lane as hydration.
+      return DefaultLanePriority;
+    case IdleSchedulerPriority:
+      return IdleLanePriority;
+    default:
+      return NoLanePriority;
+  }
+}
+
+export function lanePriorityToSchedulerPriority(
+  lanePriority,
+) {
+  switch (lanePriority) {
+    case SyncLanePriority:
+    case SyncBatchedLanePriority:
+      return ImmediateSchedulerPriority;
+    case InputDiscreteHydrationLanePriority:
+    case InputDiscreteLanePriority:
+    case InputContinuousHydrationLanePriority:
+    case InputContinuousLanePriority:
+      return UserBlockingSchedulerPriority;
+    case DefaultHydrationLanePriority:
+    case DefaultLanePriority:
+    case TransitionHydrationPriority:
+    case TransitionPriority:
+    case SelectiveHydrationLanePriority:
+    case RetryLanePriority:
+      return NormalSchedulerPriority;
+    case IdleHydrationLanePriority:
+    case IdleLanePriority:
+    case OffscreenLanePriority:
+      return IdleSchedulerPriority;
+    case NoLanePriority:
+      return NoSchedulerPriority;
+    default:
+      break;
+  }
+}
+
 export function getNextLanes(root, wipLanes) {
   const pendingLanes = root.pendingLanes;
-  if(pendingLanes === NoLanes) {
+  if (pendingLanes === NoLanes) {
     return_highestLanePriority = NoLanePriority;
     return NoLanes;
   }
@@ -169,72 +218,72 @@ export function getNextLanes(root, wipLanes) {
   const suspendedLanes = root.suspendedLanes;
   const pingedLanes = root.pingedLanes;
 
-  if(expiredLanes !== NoLanes) {
+  if (expiredLanes !== NoLanes) {
     nextLanes = expiredLanes;
     nextLanePriority = return_highestLanePriority = SyncLanePriority;
   } else {
     const nonIdlePendingLanes = pendingLanes & NonIdleLanes;
-    if(nonIdlePendingLanes !== NoLanes) {
+    if (nonIdlePendingLanes !== NoLanes) {
       const nonIdelUnblockedLanes = nonIdlePendingLanes & ~suspendedLanes;
-      if(nonIdelUnblockedLanes !== NoLanes) {
+      if (nonIdelUnblockedLanes !== NoLanes) {
         nextLanes = getHighestPriorityLanes(nonIdelUnblockedLanes);
         nextLanePriority = return_highestLanePriority;
       } else {
-        const nonIdlePingedLanes  = nonIdlePendingLanes & pingedLanes;
-        if(nonIdlePingedLanes !== NoLanes) {
+        const nonIdlePingedLanes = nonIdlePendingLanes & pingedLanes;
+        if (nonIdlePingedLanes !== NoLanes) {
           nextLanes = getHighestPriorityLanes(nonIdlePingedLanes);
           nextLanePriority = return_highestLanePriority;
         }
       }
     } else {
       const unblockedLanes = pendingLanes & ~suspendedLanes;
-      if(unblockedLanes !== NoLanes) {
+      if (unblockedLanes !== NoLanes) {
         nextLanes = getHighestPriorityLanes(unblockedLanes);
         nextLanePriority = return_highestLanePriority;
       } else {
-        if(pingedLanes !== NoLanes) {
+        if (pingedLanes !== NoLanes) {
           nextLanes = getHighestPriorityLanes(pingedLanes);
           nextLanePriority = return_highestLanePriority;
         }
       }
     }
-   }
+  }
 
-   if(nextLanes === NoLanes) {
-     return NoLanes;
-   }
+  if (nextLanes === NoLanes) {
+    return NoLanes;
+  }
 
-   nextLanes = pendingLanes & getEqualOrHigherPriorityLanes(nextLanes);
+  nextLanes = pendingLanes & getEqualOrHigherPriorityLanes(nextLanes);
 
-   if(
-     wipLanes !== NoLanes
-     && wipLanes !== nextLanes
-     && (wipLanes & suspendedLanes) === NoLanes
-   ) {
-     getHighestPriorityLanes(wipLanes);
-     const wipLanePriority = return_highestLanePriority;
-     if(nextLanePriority <= wipLanePriority) {
-       return wipLanes;
-     } else {
-       return_highestLanePriority = nextLanePriority;
-     }
-   }
+  if (
+    wipLanes !== NoLanes
+    && wipLanes !== nextLanes
+    && (wipLanes & suspendedLanes) === NoLanes
+  ) {
+    getHighestPriorityLanes(wipLanes);
+    const wipLanePriority = return_highestLanePriority;
+    if (nextLanePriority <= wipLanePriority) {
+      return wipLanes;
+    } else {
+      return_highestLanePriority = nextLanePriority;
+    }
+  }
 
-   const entangledLanes = root.entangledLanes;
-   if(entangledLanes !== NoLanes) {
-     const entanglements = root.entanglements;
-     let lanes = nextLanes & entangledLanes;
-    while(lanes > 0) {
-      const index =  pickArbitraryLaneIndex(lanes);
+  const entangledLanes = root.entangledLanes;
+  if (entangledLanes !== NoLanes) {
+    const entanglements = root.entanglements;
+    let lanes = nextLanes & entangledLanes;
+    while (lanes > 0) {
+      const index = pickArbitraryLaneIndex(lanes);
       const lane = 1 << index;
 
       nextLanes |= entanglements[index];
 
       lanes &= ~lane;
-    }      
-   }
+    }
+  }
 
-   return nextLanes;
+  return nextLanes;
 }
 
 export function returnNextLanesPriority() {
@@ -254,19 +303,19 @@ function getEqualOrHigherPriorityLanes(lanes) {
 function computeExpirationTime(root, currentTime) {
   getHighestPriorityLanes(lane);
   const priority = return_highestLanePriority;
-  if(priority >= InputContinuousLanePriority) {
+  if (priority >= InputContinuousLanePriority) {
     return currentTime + 250;
-  } else if(priority > TransitionPriority) {
-    return  currentTime + 5000;
+  } else if (priority > TransitionPriority) {
+    return currentTime + 5000;
   } else {
     return NoTimestamp;
   }
 }
 
-let  return_highestLanePriority = DefaultLanePriority;
+let return_highestLanePriority = DefaultLanePriority;
 
 function getHighestPriorityLanes(lanes) {
-  if ((SyncLane & lanes) !== NoLanes) { 
+  if ((SyncLane & lanes) !== NoLanes) {
     return_highestLanePriority = SyncLanePriority;
     return SyncLane;
   }
@@ -346,7 +395,7 @@ export function removeLanes(set, subset) {
   return set & ~subset;
 }
 
-function pickArbitraryLaneIndex(lanes)  {
+function pickArbitraryLaneIndex(lanes) {
   return 31 - clz32(lanes);
 }
 

@@ -34,7 +34,7 @@ function FirstMount(props) {
   useEffect(() => {
     // some effect
     console.log("===>>>>effect: ", count);
-    setTimeout(function() {
+    setTimeout(() => {
       console.log("====>>>>>start setTimeout update");
       setCount(2);
     }, 2000);
@@ -44,11 +44,7 @@ function FirstMount(props) {
   }, [count]);
   
   return (
-    createElement('div', {
-      style: {
-        border: "1px solid #000"
-      }
-    }, `${count}`)
+    createElement('div', null, `${count}`)
     // createElement(
     //   'ul',
     //   null,

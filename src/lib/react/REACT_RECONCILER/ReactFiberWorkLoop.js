@@ -52,6 +52,7 @@ import {
  } from '../shared/ReactFeatureFlags';
 import { HostRoot } from './ReactWorkTags';
 import { unwindInterruptedWork } from './ReactFiberUnwindWork';
+import { turn2 } from '../../tools';
 let rootDoseHavePassiveEffects = false;
 
 export const NoContext = /*             */ 0b0000000;
@@ -352,10 +353,7 @@ function commitRootImpl(root, renderPriorityLevel) {
 
     commitBeforeMutationEffects(finishedWork);
 
-    console.log("====>>>>>beforeMutationt", finishedWork);
-
     commitMutationEffects(finishedWork, root, renderPriorityLevel);
-    console.log("====>>>>>afterMutationt", finishedWork);
 
   
     resetAfterCommit(root.containerInfo);
@@ -491,6 +489,7 @@ function commitBeforeMutationEffects(firstChild) {
     // }
     if(fiber.child !== null) {
       const primarySubtreeFlags = fiber.subtreeFlags & BeforeMutationMask;
+      console.log("====>>>>>commitBeforeMutationEffects", fiber, "\n", turn2(fiber.subtreeFlags, 18), "\n", turn2(BeforeMutationMask, 18), primarySubtreeFlags);
       if(primarySubtreeFlags !== NoFlags) {
         commitBeforeMutationEffects(fiber.child);
       }
@@ -506,39 +505,9 @@ function commitBeforeMutationEffects(firstChild) {
   }
 }
 
-// function commitBeforeMutationEffects() {
-//   while(nextEffect !== null) {
-//     const current = nextEffect.alternate;
-
-//     const flags = nextEffect.flags;
-//     if((flags & Snapshot) !== NoFlags) {
-//       commitBeforeMutationEffectOnFiber(current, nextEffect);
-//     }
-
-//     if((flags & Passive) !== NoFlags) {
-//       if(!rootDoseHavePassiveEffects) {
-//         rootDoseHavePassiveEffects = true;
-//         scheduleCallback(
-//           NormalSchedulerPriority,
-//           () => {
-//             flushPassiveEffects();
-//             return null;
-//           }
-//         );
-//       }
-//     }
-
-//     nextEffect = nextEffect.nextEffect;
-//   }
-// }
-
 function commitBeforeMutationEffectsImpl(fiber) {
   const current = fiber.alternate;
   const flags = fiber.flags;
-
-  if((flags & Snapshot) !== NoFlags) {
-    commitBeforeMutationEffectsOnFiber(current, fiber);
-  } 
 
   if((flags & Passive) !== NoFlags) {
     if(!rootDoseHavePassiveEffects) {
@@ -560,6 +529,7 @@ function commitMutationEffects(firstChild, root, renderPriorityLevel) {
   while(fiber !== null) {
     if(fiber.child !== null) {
       const mutationFlags = fiber.subtreeFlags & MutationMask;
+      // console.log("====>>>>>commitMutationEffects", fiber, "\n", turn2(fiber.subtreeFlags, 18), "\n", turn2(MutationMask, 18), mutationFlags);
       if(mutationFlags !== NoFlags) {
         commitMutationEffects(fiber.child, root, renderPriorityLevel);
       }

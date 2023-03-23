@@ -1,180 +1,287 @@
-All effects are queued in the run of FunctionComponent, and handled in the Commit stage.
+# Effect
+All effects are queued in the run of FunctionComponent, and handled in the Commit stage. Here we discuss two main effects `useEffect` and `useLayoutEffect`.
 
-The `commitRootImpl` handles the whole process. Only leave the related code of effect handle.
+## Table Contents
+- [Effect](#effect)
+  - [Table Contents](#table-contents)
+  - [Create Effect](#create-effect)
+    - [`mountEffect`](#mounteffect)
+    - [`mountLayoutEffect`](#mountlayouteffect)
+    - [`mountEffectImpl`](#mounteffectimpl)
+    - [`pushEffect`](#pusheffect)
+  - [Handle Effects](#handle-effects)
+    - [CommitBeforeMutationEffects](#commitbeforemutationeffects)
+    - [CommitMutationEffects](#commitmutationeffects)
+    - [RecursivelyCommitLayoutEffects](#recursivelycommitlayouteffects)
+  - [FlushPassiveEffects(useEffect function)](#flushpassiveeffectsuseeffect-function)
+  - [Update Effect](#update-effect)
+    - [`updateEffect`](#updateeffect)
+    - [`updateLayoutEffect`](#updatelayouteffect)
+    - [`updateEffectImpl`](#updateeffectimpl)
 
+---
+## Create Effect 
+>Here we introduce the two main effects, `useEffect` and `useLayoutEffect` are treated as `mountEffect` and `mountLayoutEffect` respectively in the mount stage.  
+
+### `mountEffect`
+
+  ```
+function mountEffect(
+  create: () => (() => void) | void,
+  deps: Array<mixed> | void | null,
+): void {
+    return mountEffectImpl(
+      PassiveEffect | PassiveStaticEffect,
+      HookPassive,
+      create,
+      deps,
+    );
+}
+  ```
+
+### `mountLayoutEffect`
+  
 ```
-function commitRootImpl(root, renderPriorityLevel) {
-  do {
-    // `flushPassiveEffects` will call `flushSyncUpdateQueue` at the end, which
-    // means `flushPassiveEffects` will sometimes result in additional
-    // passive effects. So we need to keep flushing in a loop until there are
-    // no more pending effects.
-    // TODO: Might be better if `flushPassiveEffects` did not automatically
-    // flush synchronous work at the end, to avoid factoring hazards like this.
-    flushPassiveEffects();
-  } while (rootWithPendingPassiveEffects !== null);
-
-
-  // Check if there are any effects in the whole tree.
-  // TODO: This is left over from the effect list implementation, where we had
-  // to check for the existence of `firstEffect` to satsify Flow. I think the
-  // only other reason this optimization exists is because it affects profiling.
-  // Reconsider whether this is necessary.
-  const subtreeHasEffects =
-    (finishedWork.subtreeFlags &
-      (BeforeMutationMask | MutationMask | LayoutMask | PassiveMask)) !==
-    NoFlags;
-  const rootHasEffect =
-    (finishedWork.flags &
-      (BeforeMutationMask | MutationMask | LayoutMask | PassiveMask)) !==
-    NoFlags;
-
-  if (subtreeHasEffects || rootHasEffect) {
-    let previousLanePriority;
-    if (decoupleUpdatePriorityFromScheduler) {
-      previousLanePriority = getCurrentUpdateLanePriority();
-      setCurrentUpdateLanePriority(SyncLanePriority);
-    }
-
-    const prevExecutionContext = executionContext;
-    executionContext |= CommitContext;
-    const prevInteractions = pushInteractions(root);
-
-    // Reset this to null before calling lifecycles
-    ReactCurrentOwner.current = null;
-
-    // The commit phase is broken into several sub-phases. We do a separate pass
-    // of the effect list for each phase: all mutation effects come before all
-    // layout effects, and so on.
-
-    // The first phase a "before mutation" phase. We use this phase to read the
-    // state of the host tree right before we mutate it. This is where
-    // getSnapshotBeforeUpdate is called.
-    focusedInstanceHandle = prepareForCommit(root.containerInfo);
-    shouldFireAfterActiveInstanceBlur = false;
-
-    commitBeforeMutationEffects(finishedWork);
-
-    // The next phase is the mutation phase, where we mutate the host tree.
-    commitMutationEffects(finishedWork, root, renderPriorityLevel);
-
-    resetAfterCommit(root.containerInfo);
-
-    // The work-in-progress tree is now the current tree. This must come after
-    // the mutation phase, so that the previous tree is still current during
-    // componentWillUnmount, but before the layout phase, so that the finished
-    // work is current during componentDidMount/Update.
-    root.current = finishedWork;
-
-    // The next phase is the layout phase, where we call effects that read
-    // the host tree after it's been mutated. The idiomatic use case for this is
-    // layout, but class component lifecycles also fire here for legacy reasons.
-
-
-      try {
-        recursivelyCommitLayoutEffects(finishedWork, root);
-      } catch (error) {
-        captureCommitPhaseErrorOnRoot(finishedWork, finishedWork, error);
-      }
-
-    // If there are pending passive effects, schedule a callback to process them.
-    if (
-      (finishedWork.subtreeFlags & PassiveMask) !== NoFlags ||
-      (finishedWork.flags & PassiveMask) !== NoFlags
-    ) {
-      if (!rootDoesHavePassiveEffects) {
-        rootDoesHavePassiveEffects = true;
-        scheduleCallback(NormalSchedulerPriority, () => {
-          flushPassiveEffects();
-          return null;
-        });
-      }
-    }
-
-    // Tell Scheduler to yield at the end of the frame, so the browser has an
-    // opportunity to paint.
-    requestPaint();
-
-    executionContext = prevExecutionContext;
-
-    if (decoupleUpdatePriorityFromScheduler && previousLanePriority != null) {
-      // Reset the priority to the previous non-sync value.
-      setCurrentUpdateLanePriority(previousLanePriority);
-    }
-  } else {
-    // No effects.
-    root.current = finishedWork;
-  }
-
-  const rootDidHavePassiveEffects = rootDoesHavePassiveEffects;
-
-  if (rootDoesHavePassiveEffects) {
-    // This commit has passive effects. Stash a reference to them. But don't
-    // schedule a callback until after flushing layout work.
-    rootDoesHavePassiveEffects = false;
-    rootWithPendingPassiveEffects = root;
-    pendingPassiveEffectsLanes = lanes;
-    pendingPassiveEffectsRenderPriority = renderPriorityLevel;
-  }
-
-  // Read this again, since an effect might have updated it
-  remainingLanes = root.pendingLanes;
-
-  // Check if there's remaining work on this root
-  if (remainingLanes !== NoLanes) {
-    if (enableSchedulerTracing) {
-      if (spawnedWorkDuringRender !== null) {
-        const expirationTimes = spawnedWorkDuringRender;
-        spawnedWorkDuringRender = null;
-        for (let i = 0; i < expirationTimes.length; i++) {
-          scheduleInteractions(
-            root,
-            expirationTimes[i],
-            root.memoizedInteractions,
-          );
-        }
-      }
-      schedulePendingInteractions(root, remainingLanes);
-    }
-  } else {
-    // If there's no remaining work, we can clear the set of already failed
-    // error boundaries.
-    legacyErrorBoundariesThatAlreadyFailed = null;
-  }
-
-  if (remainingLanes === SyncLane) {
-    // Count the number of times the root synchronously re-renders without
-    // finishing. If there are too many, it indicates an infinite update loop.
-    if (root === rootWithNestedUpdates) {
-      nestedUpdateCount++;
-    } else {
-      nestedUpdateCount = 0;
-      rootWithNestedUpdates = root;
-    }
-  } else {
-    nestedUpdateCount = 0;
-  }
-
-  // Always call this before exiting `commitRoot`, to ensure that any
-  // additional work on this root is scheduled.
-  ensureRootIsScheduled(root, now());
-
-  if ((executionContext & LegacyUnbatchedContext) !== NoContext) {
-    // This is a legacy edge case. We just committed the initial mount of
-    // a ReactDOM.render-ed root inside of batchedUpdates. The commit fired
-    // synchronously, but layout updates should be deferred until the end
-    // of the batch.
-    return null;
-  }
-
-  // If layout work was scheduled, flush it now.
-  flushSyncCallbackQueue();
-
-  return null;
+function mountLayoutEffect(
+  create: () => (() => void) | void,
+  deps: Array<mixed> | void | null,
+): void {
+  return mountEffectImpl(UpdateEffect, HookLayout, create, deps);
 }
 ```
 
-`flushPassiveEffects` handles passive effects.
+We can see that the two functions both call the `mountEffectImpl` to create their own effect. The difference between them is the parments passed into the function which will used in the commit stage.
+
+### `mountEffectImpl`
+
+```
+function mountEffectImpl(fiberFlags, hookFlags, create, deps): void {
+  const hook = mountWorkInProgressHook();
+  const nextDeps = deps === undefined ? null : deps;
+  currentlyRenderingFiber.flags |= fiberFlags;
+  hook.memoizedState = pushEffect(
+    HookHasEffect | hookFlags,
+    create,
+    undefined,
+    nextDeps,
+  );
+}
+```
+
+Then call the `puchEffect` function to create new effect, mount it to the hooks linked list and fiber's updateQueue.
+
+###  `pushEffect`
+
+```
+function pushEffect(tag, create, destroy, deps) {
+  const effect: Effect = {
+    tag,
+    create,
+    destroy,
+    deps,
+    // Circular
+    next: (null: any),
+  };
+  let componentUpdateQueue: null | FunctionComponentUpdateQueue = (currentlyRenderingFiber.updateQueue: any);
+  if (componentUpdateQueue === null) {
+    componentUpdateQueue = createFunctionComponentUpdateQueue();
+    currentlyRenderingFiber.updateQueue = (componentUpdateQueue: any);
+    componentUpdateQueue.lastEffect = effect.next = effect;
+  } else {
+    const lastEffect = componentUpdateQueue.lastEffect;
+    if (lastEffect === null) {
+      componentUpdateQueue.lastEffect = effect.next = effect;
+    } else {
+      const firstEffect = lastEffect.next;
+      lastEffect.next = effect;
+      effect.next = firstEffect;
+      componentUpdateQueue.lastEffect = effect;
+    }
+  }
+  return effect;
+}
+```
+
+## Handle Effects 
+> The handle effects action is in the commit stage, and the stage can be seperate into three steps.
+> 
+> 1. `commitBeforeMutationEffects` 
+> 2. `commitMutationEffects`
+> 3. `recursivelyCommitLayoutEffects`
+
+### CommitBeforeMutationEffects
+> before DOM mutation
+
+```
+function commitBeforeMutationEffects(firstChild: Fiber) {
+  let fiber = firstChild;
+  // DFS
+  while (fiber !== null) {
+    if (fiber.child !== null) {
+      const primarySubtreeFlags = fiber.subtreeFlags & BeforeMutationMask;
+      if (primarySubtreeFlags !== NoFlags) {
+        commitBeforeMutationEffects(fiber.child);
+      }
+    }
+
+    commitBeforeMutationEffectsImpl(fiber);
+    fiber = fiber.sibling;
+  }
+}
+```
+
+`commitBeforeMutationEffectsImpl`
+
+```
+function commitBeforeMutationEffectsImpl(fiber: Fiber) {
+  const current = fiber.alternate;
+  const flags = fiber.flags;
+
+  if ((flags & Passive) !== NoFlags) {
+    // If there are passive effects, schedule a callback to flush at
+    // the earliest opportunity.
+    if (!rootDoesHavePassiveEffects) {
+      rootDoesHavePassiveEffects = true;
+      // async task
+      scheduleCallback(NormalSchedulerPriority, () => {
+        flushPassiveEffects();
+        return null;
+      });
+    }
+  }
+}
+```
+
+Here we can see before the mutation stage, just schedule an async task of `flushPassiveEffects`.
+
+### CommitMutationEffects
+> DOM mutation
+```
+function commitMutationEffects(
+  firstChild: Fiber,
+  root: FiberRoot,
+  renderPriorityLevel: ReactPriorityLevel,
+) {
+  let fiber = firstChild;
+  while (fiber !== null) {
+    // DFS
+    if (fiber.child !== null) {
+      const mutationFlags = fiber.subtreeFlags & MutationMask;
+      if (mutationFlags !== NoFlags) {
+        commitMutationEffects(fiber.child, root, renderPriorityLevel);
+      }
+    }
+
+    commitMutationEffectsImpl(fiber, root, renderPriorityLevel);
+    fiber = fiber.sibling;
+  }
+}
+```
+`commitMutationEffectsImpl`
+```
+function commitMutationEffectsImpl(
+  fiber: Fiber,
+  root: FiberRoot,
+  renderPriorityLevel,
+) {
+  const flags = fiber.flags;
+
+  const primaryFlags = flags & (Placement | Update | Hydrating);
+  switch (primaryFlags) {
+    case PlacementAndUpdate: {
+      // Update
+      const current = fiber.alternate;
+      commitWork(current, fiber);
+      break;
+    }
+    case Update: {
+      const current = fiber.alternate;
+      commitWork(current, fiber);
+      break;
+    }
+  }
+}
+```
+`commitWork`
+```
+function commitWork(current: Fiber | null, finishedWork: Fiber): void {
+    switch (finishedWork.tag) {
+      case FunctionComponent:
+      case ForwardRef:
+      case MemoComponent:
+      case SimpleMemoComponent:
+      case Block: {
+        // Layout effects are destroyed during the mutation phase so that all
+        // destroy functions for all fibers are called before any create functions.
+        // This prevents sibling component effects from interfering with each other,
+        // e.g. a destroy function in one component should never override a ref set
+        // by a create function in another component during the same commit.
+          commitHookEffectListUnmount(
+            HookLayout | HookHasEffect,
+            finishedWork,
+            finishedWork.return,
+          );
+        return;
+      }
+    }
+}
+```
+
+Before the DOM mutation, the desotry function of useLayoutEffect will be handled, not like the useEffect.
+
+### RecursivelyCommitLayoutEffects
+> after DOM mutation
+```
+function recursivelyCommitLayoutEffects() {
+  let child = finishedWork.child;
+  // DFS
+  while (child !== null) {
+    const primarySubtreeFlags = finishedWork.subtreeFlags & LayoutMask;
+    if (primarySubtreeFlags !== NoFlags) {
+      recursivelyCommitLayoutEffects(child, finishedRoot);
+    }
+    child = child.sibling;
+  }
+  // all layout effect will be marked as Update flag.
+  const primaryFlags = flags & (Update | Callback);
+  if (primaryFlags !== NoFlags) {
+    switch (tag) {
+      case FunctionComponent:
+      case ForwardRef:
+      case SimpleMemoComponent:
+      case Block: {
+        // run the layout effect after desotry function
+        commitHookEffectListMount(
+          HookLayout | HookHasEffect,
+          finishedWork,
+        );
+
+        if ((finishedWork.subtreeFlags & PassiveMask) !== NoFlags) {
+          schedulePassiveEffectCallback();
+        }
+        break;
+      }
+    }
+  }
+}
+```
+
+`schedulePassiveEffectCallback`: schedule the passive effect async
+```
+export function schedulePassiveEffectCallback() {
+  if (!rootDoesHavePassiveEffects) {
+    rootDoesHavePassiveEffects = true;
+    scheduleCallback(NormalSchedulerPriority, () => {
+      flushPassiveEffects();
+      return null;
+    });
+  }
+}
+```
+
+Here the function of useLayoutEffect will be called, and schedule another useEffect function.
+
+## FlushPassiveEffects(useEffect function)
 ```
 export function flushPassiveEffects(): boolean {
   // Returns whether passive effects were flushed.
@@ -184,41 +291,15 @@ export function flushPassiveEffects(): boolean {
         ? NormalSchedulerPriority
         : pendingPassiveEffectsRenderPriority;
     pendingPassiveEffectsRenderPriority = NoSchedulerPriority;
-    if (decoupleUpdatePriorityFromScheduler) {
-      const previousLanePriority = getCurrentUpdateLanePriority();
-      try {
-        setCurrentUpdateLanePriority(
-          schedulerPriorityToLanePriority(priorityLevel),
-        );
-        return runWithPriority(priorityLevel, flushPassiveEffectsImpl);
-      } finally {
-        setCurrentUpdateLanePriority(previousLanePriority);
-      }
-    } else {
-      return runWithPriority(priorityLevel, flushPassiveEffectsImpl);
-    }
+    return runWithPriority(priorityLevel, flushPassiveEffectsImpl);
   }
   return false;
 }
 ```
-> we can see the real logic is in the `flushPassiveEffectsImpl` function.
-
+We can see the real logic is in the `flushPassiveEffectsImpl` function.
 Only keep the related code.
 ```
 function flushPassiveEffectsImpl() {
-  if (rootWithPendingPassiveEffects === null) {
-    return false;
-  }
-
-  const root = rootWithPendingPassiveEffects;
-  const lanes = pendingPassiveEffectsLanes;
-  rootWithPendingPassiveEffects = null;
-  pendingPassiveEffectsLanes = NoLanes;
-
-
-  const prevExecutionContext = executionContext;
-  executionContext |= CommitContext;
-  const prevInteractions = pushInteractions(root);
 
   // It's important that ALL pending passive effect destroy functions are called
   // before ANY passive effect create functions are called.
@@ -226,18 +307,199 @@ function flushPassiveEffectsImpl() {
   // e.g. a destroy function in one component may unintentionally override a ref
   // value set by a create function in another component.
   // Layout effects have the same constraint.
+
   flushPassiveUnmountEffects(root.current);
   flushPassiveMountEffects(root, root.current);
-
-  executionContext = prevExecutionContext;
-
-  flushSyncCallbackQueue();
-
-  // If additional passive effects were scheduled, increment a counter. If this
-  // exceeds the limit, we'll fire a warning.
-  nestedPassiveUpdateCount =
-    rootWithPendingPassiveEffects === null ? 0 : nestedPassiveUpdateCount + 1;
 
   return true;
 }
 ```
+
+`flushPassiveUnmountEffects`
+```
+function flushPassiveUnmountEffects(firstChild: Fiber): void {
+  let fiber = firstChild;
+  while (fiber !== null) {
+
+    // DFS
+    const child = fiber.child;
+    if (child !== null) {
+      // If any children have passive effects then traverse the subtree.
+      // Note that this requires checking subtreeFlags of the current Fiber,
+      // rather than the subtreeFlags/effectsTag of the first child,
+      // since that would not cover passive effects in siblings.
+      const passiveFlags = fiber.subtreeFlags & PassiveMask;
+      if (passiveFlags !== NoFlags) {
+        flushPassiveUnmountEffects(child);
+      }
+    }
+
+    const primaryFlags = fiber.flags & Passive;
+    if (primaryFlags !== NoFlags) {
+      commitPassiveUnmountOnFiber(fiber);
+    }
+
+    fiber = fiber.sibling;
+  }
+}
+```
+`commitPassiveUnmountOnFiber` this function actully is `commitPassiveUnmount`
+```
+function commitPassiveUnmount(finishedWork: Fiber): void {
+  switch (finishedWork.tag) {
+    case FunctionComponent:
+    case ForwardRef:
+    case SimpleMemoComponent:
+    case Block: {
+        commitHookEffectListUnmount(
+          HookPassive | HookHasEffect,
+          finishedWork,
+          finishedWork.return,
+        );
+      break;
+    }
+  }
+}
+```
+
+`flushPassiveMountEffects`
+```
+function flushPassiveMountEffects(root, firstChild: Fiber): void {
+  let fiber = firstChild;
+  while (fiber !== null) {
+    let prevProfilerOnStack = null;
+
+    // DFS
+    const primarySubtreeFlags = fiber.subtreeFlags & PassiveMask;
+    if (fiber.child !== null && primarySubtreeFlags !== NoFlags) {
+      flushPassiveMountEffects(root, fiber.child);
+    }
+
+    if ((fiber.flags & Passive) !== NoFlags) {
+          commitPassiveMountOnFiber(root, fiber);
+    }
+    fiber = fiber.sibling;
+  }
+}
+```
+`commitPassiveMountOnFiber` this function actully is `commitPassiveMount`
+```
+function commitPassiveMount(
+  finishedRoot: FiberRoot,
+  finishedWork: Fiber,
+): void {
+  switch (finishedWork.tag) {
+    case FunctionComponent:
+    case ForwardRef:
+    case SimpleMemoComponent:
+    case Block: {
+        commitHookEffectListMount(HookPassive | HookHasEffect, finishedWork);
+      }
+      break;
+  }
+}
+```
+---
+`commitHookEffectListUnmount`, `useEffect` and `useLayoutEffect` both will call this function in the last to run the destory function.
+```
+function commitHookEffectListUnmount(
+  flags: HookFlags,
+  finishedWork: Fiber,
+  nearestMountedAncestor: Fiber | null,
+) {
+  const updateQueue: FunctionComponentUpdateQueue | null = (finishedWork.updateQueue: any);
+  const lastEffect = updateQueue !== null ? updateQueue.lastEffect : null;
+  if (lastEffect !== null) {
+    const firstEffect = lastEffect.next;
+    let effect = firstEffect;
+    do {
+      if ((effect.tag & flags) === flags) {
+        // Unmount
+        const destroy = effect.destroy;
+        effect.destroy = undefined;
+        if (destroy !== undefined) {
+          safelyCallDestroy(finishedWork, nearestMountedAncestor, destroy);
+        }
+      }
+      effect = effect.next;
+    } while (effect !== firstEffect);
+  }
+}
+```
+
+`commitHookEffectListMount`, `useEffect` and `useLayoutEffect` both will call this function in the last to run the create function.
+```
+function commitHookEffectListMount(flags: HookFlags, finishedWork: Fiber) {
+  const updateQueue: FunctionComponentUpdateQueue | null = (finishedWork.updateQueue: any);
+  const lastEffect = updateQueue !== null ? updateQueue.lastEffect : null;
+  if (lastEffect !== null) {
+    const firstEffect = lastEffect.next;
+    let effect = firstEffect;
+    do {
+      if ((effect.tag & flags) === flags) {
+        // Mount
+        const create = effect.create;
+        effect.destroy = create();
+      }
+      effect = effect.next;
+    } while (effect !== firstEffect);
+  }
+}
+```
+
+## Update Effect
+
+### `updateEffect`
+```
+function updateEffect(
+  create: () => (() => void) | void,
+  deps: Array<mixed> | void | null,
+): void {
+  return updateEffectImpl(PassiveEffect, HookPassive, create, deps);
+}
+```
+### `updateLayoutEffect`
+```
+function updateLayoutEffect(
+  create: () => (() => void) | void,
+  deps: Array<mixed> | void | null,
+): void {
+  return updateEffectImpl(UpdateEffect, HookLayout, create, deps);
+}
+```
+> `useEffect` will run the `updateEffect`, `useLayoutEffect` will run the `updateLayoutEffect` in the update stage. And both directly call the `updateEffectImpl` function.
+
+### `updateEffectImpl`
+```
+function updateEffectImpl(fiberFlags, hookFlags, create, deps): void {
+  // get the hook linked list, 
+  const hook = updateWorkInProgressHook();
+  const nextDeps = deps === undefined ? null : deps;
+  let destroy = undefined;
+
+  if (currentHook !== null) {
+    const prevEffect = currentHook.memoizedState;
+    destroy = prevEffect.destroy;
+    if (nextDeps !== null) {
+      const prevDeps = prevEffect.deps;
+      // if the deps are equal, no need to run the effect, just add it to the fiber's updateQueue for the continue run.
+      if (areHookInputsEqual(nextDeps, prevDeps)) {
+        pushEffect(hookFlags, create, destroy, nextDeps);
+        return;
+      }
+    }
+  }
+
+  // mark it on the fiber, wait for handle in the commit stage.
+  currentlyRenderingFiber.flags |= fiberFlags;
+
+  // same as before, but need to be sotred in the effect hook.
+  hook.memoizedState = pushEffect(
+    HookHasEffect | hookFlags,
+    create,
+    destroy,
+    nextDeps,
+  );
+}
+```
+The logic of `updateWorkInProgressHook`, you can see here [updateWorkInProgressHook](./theoryOfHooks.md#updateworkinprogresshook), and the `pushEffect` is here [pushEffect](theoryOfHooks.md#pusheffect-will-be-used-both-in-mount-and-update-stages)

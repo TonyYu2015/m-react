@@ -285,7 +285,7 @@ function  updateEffectImpl(fiberFlags, hookFlags, create, deps) {
     }
   }
 
-  currentlyRenderingFiber.flag |=  fiberFlags;
+  currentlyRenderingFiber.flags |=  fiberFlags;
   hook.memoizedState = pushEffect(
     HookHasEffect | hookFlags,
     create,
