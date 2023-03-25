@@ -1,8 +1,18 @@
-Properties in Fiber related to hooks
-```
-WorkInProgressHook: Hook, // will be set null after FunctionComponent run
-currentHook: Hook,
+# The theory of hooks
 
+## Concepts in Fiber related to hooks
+
+```javascript
+// a hook linked list when render
+let WorkInProgressHook: Hook; 
+
+// the hook linked list  in the current structure
+let currentHook: Hook; 
+
+// The work-in-progress fiber, it is just named differently to be distinguished from the work-in-progress hook.
+let currentlyRenderingFiber: Fiber = (null: any); 
+
+// an update in the hook linked list
 type Update<S, A> = {
   lane: Lane,
   action: A,
@@ -12,6 +22,7 @@ type Update<S, A> = {
   priority?: ReactPriorityLevel,
 };
 
+// the update queue of a hook
 type UpdateQueue<S, A> = {
   pending: Update<S, A> | null,
   dispatch: (A => mixed) | null,
@@ -19,6 +30,7 @@ type UpdateQueue<S, A> = {
   lastRenderedState: S | null,
 };
 
+// a hook definition
 type Hook = {
     memoizedState: any, // stored state
     baseState: any, // initial state
@@ -27,7 +39,8 @@ type Hook = {
     next: Hook, // next hook in the  hook linked list
 }
 
-export type Effect = {
+// effect hook
+type Effect = {
   tag: HookFlags,
   create: () => (() => void) | void,
   destroy: (() => void) | void,
@@ -40,10 +53,38 @@ type Fiber = {
     updateQueue: Hook, // effect linked list (only effect hooks), will be used in the commit stage
 }
 ```
-`renderWithHooks` is the render function of FunctionComponent, the logic inside the function is very clear. beofre the 
+
+## Entry of FunctionCompoent run
+>only keep the related code
+```javascript
+function updateFunctionComponent(
+  current,
+  workInProgress,
+  Component,
+  nextProps: any,
+  renderLanes,
+) {
+
+  let nextChildren;
+  nextChildren = renderWithHooks(
+    current,
+    workInProgress,
+    Component,
+    nextProps,
+    context,
+    renderLanes,
+  );
+
+  reconcileChildren(current, workInProgress, nextChildren, renderLanes);
+  return workInProgress.child;
+}
+```
+
+## Main function
+`renderWithHooks` is the render function of FunctionComponent, the logic inside the function is very clear. before the 
 FunctionComponent run, run the FunctionCompoent, and after the run of the FunctionComponent.
 
-```
+``` javascript
 function renderWithHooks(
   current: Fiber | null,
   workInProgress: Fiber,
@@ -83,7 +124,7 @@ function renderWithHooks(
 }
 ```
 
-### Inside the FunctionComponent
+## Inside the FunctionComponent
 
 Before introduce the hooks function, we should know `mountWorkInProgressHook` and `updateWorkInProgressHook`, the two 
 functions will be called in mount and update stages respectivly, they will return a new hook or an existed hook.
@@ -91,33 +132,35 @@ functions will be called in mount and update stages respectivly, they will retur
 very simple in the mount function, create a new hook, assign it to workInProgressHook and fiber.memoizedState if not existed,
 or assign it to the current workInProgressHook's next, and move the workInProgressHook to the new hook.
 
-```
+
+### `mountWorkInProgressHook`
+```javascript
 function mountWorkInProgressHook(): Hook {
   const hook: Hook = {
     memoizedState: null,
-
     baseState: null,
     baseQueue: null,
     queue: null,
-
     next: null,
   };
 
   if (workInProgressHook === null) {
-    // This is the first hook in the list
+    // This is the first hook in the linked list
     currentlyRenderingFiber.memoizedState = workInProgressHook = hook;
   } else {
-    // Append to the end of the list
+    // Append to the end of the linked list
     workInProgressHook = workInProgressHook.next = hook;
   }
   return workInProgressHook;
 }
 ```
 
-the update function will move workInProgressHook and currentHook to next.
 
 ### `updateWorkInProgressHook`
-```
+
+the update function will move workInProgressHook and currentHook to next.
+
+```javascript
 function updateWorkInProgressHook(): Hook {
   // This function is used both for updates and for re-renders triggered by a
   // render phase update. It assumes there is either a current hook we can
@@ -184,239 +227,3 @@ function updateWorkInProgressHook(): Hook {
 1. here we can learn why we should not use hooks in a condition statement, because it will rebuild the workInprogressHook linkd
 list based on the currentHook linked list, so it may confuse the order if a hook is not the same in the same place. 
 2. and don'tupdate the state inside the FunctionComponent as much as possible to avoid reach the limition of render times(25).
-
-## mount stage
-
-`useState` will be treated as `mountState`, here is the function
-
-```
-function mountState<S>(
-  initialState: (() => S) | S,
-): [S, Dispatch<BasicStateAction<S>>] {
-    // return a new hook
-  const hook = mountWorkInProgressHook();
-  if (typeof initialState === 'function') {
-    // $FlowFixMe: Flow doesn't like mixed types
-    initialState = initialState();
-  }
-  // assign the initialState
-  hook.memoizedState = hook.baseState = initialState;
-  const queue = (hook.queue = {
-    pending: null,
-    dispatch: null,
-    lastRenderedReducer: basicStateReducer,
-    lastRenderedState: (initialState: any),
-  });
-  const dispatch: Dispatch<
-    BasicStateAction<S>,
-  > = (queue.dispatch = (dispatchAction.bind(
-    null,
-    currentlyRenderingFiber,
-    queue,
-  ): any));
-  return [hook.memoizedState, dispatch];
-}
-```
-
-
-## update stage
-
-`useState` will be treated as `updateState`
-```
-function updateState<S>(
-  initialState: (() => S) | S,
-): [S, Dispatch<BasicStateAction<S>>] {
-  return updateReducer(basicStateReducer, (initialState: any));
-}
-```
-```
-function updateReducer<S, I, A>(
-  reducer: (S, A) => S,
-  initialArg: I,
-  init?: I => S,
-): [S, Dispatch<A>] {
-  const hook = updateWorkInProgressHook();
-  const queue = hook.queue;
-
-  queue.lastRenderedReducer = reducer;
-
-  const current: Hook = (currentHook: any);
-
-  // The last rebase update that is NOT part of the base state.
-  let baseQueue = current.baseQueue;
-
-  // The last pending update that hasn't been processed yet.
-  const pendingQueue = queue.pending;
-  if (pendingQueue !== null) {
-    // We have new updates that haven't been processed yet.
-    // We'll add them to the base queue.
-    if (baseQueue !== null) {
-      // Merge the pending queue and the base queue.
-      const baseFirst = baseQueue.next;
-      const pendingFirst = pendingQueue.next;
-      baseQueue.next = pendingFirst;
-      pendingQueue.next = baseFirst;
-    }
-    current.baseQueue = baseQueue = pendingQueue;
-    queue.pending = null;
-  }
-
-  if (baseQueue !== null) {
-    // We have a queue to process.
-    const first = baseQueue.next;
-    let newState = current.baseState;
-
-    let newBaseState = null;
-    let newBaseQueueFirst = null;
-    let newBaseQueueLast = null;
-    let update = first;
-    do {
-      const updateLane = update.lane;
-      if (!isSubsetOfLanes(renderLanes, updateLane)) {
-        // Priority is insufficient. Skip this update. If this is the first
-        // skipped update, the previous update/state is the new base
-        // update/state.
-        const clone: Update<S, A> = {
-          lane: updateLane,
-          action: update.action,
-          eagerReducer: update.eagerReducer,
-          eagerState: update.eagerState,
-          next: (null: any),
-        };
-        if (newBaseQueueLast === null) {
-          newBaseQueueFirst = newBaseQueueLast = clone;
-          newBaseState = newState;
-        } else {
-          newBaseQueueLast = newBaseQueueLast.next = clone;
-        }
-        // Update the remaining priority in the queue.
-        // TODO: Don't need to accumulate this. Instead, we can remove
-        // renderLanes from the original lanes.
-        currentlyRenderingFiber.lanes = mergeLanes(
-          currentlyRenderingFiber.lanes,
-          updateLane,
-        );
-        markSkippedUpdateLanes(updateLane);
-      } else {
-        // This update does have sufficient priority.
-
-        if (newBaseQueueLast !== null) {
-          const clone: Update<S, A> = {
-            // This update is going to be committed so we never want uncommit
-            // it. Using NoLane works because 0 is a subset of all bitmasks, so
-            // this will never be skipped by the check above.
-            lane: NoLane,
-            action: update.action,
-            eagerReducer: update.eagerReducer,
-            eagerState: update.eagerState,
-            next: (null: any),
-          };
-          newBaseQueueLast = newBaseQueueLast.next = clone;
-        }
-
-        // Process this update.
-        if (update.eagerReducer === reducer) {
-          // If this update was processed eagerly, and its reducer matches the
-          // current reducer, we can use the eagerly computed state.
-          newState = ((update.eagerState: any): S);
-        } else {
-          const action = update.action;
-          newState = reducer(newState, action);
-        }
-      }
-      update = update.next;
-    } while (update !== null && update !== first);
-
-    if (newBaseQueueLast === null) {
-      newBaseState = newState;
-    } else {
-      newBaseQueueLast.next = (newBaseQueueFirst: any);
-    }
-
-    // Mark that the fiber performed work, but only if the new state is
-    // different from the current state.
-    if (!is(newState, hook.memoizedState)) {
-      markWorkInProgressReceivedUpdate();
-    }
-
-    hook.memoizedState = newState;
-    hook.baseState = newBaseState;
-    hook.baseQueue = newBaseQueueLast;
-
-    queue.lastRenderedState = newState;
-  }
-
-  const dispatch: Dispatch<A> = (queue.dispatch: any);
-  return [hook.memoizedState, dispatch];
-}
-```
-`useEffect` will be treated as `updateEffect`
-```
-function updateEffect(
-  create: () => (() => void) | void,
-  deps: Array<mixed> | void | null,
-): void {
-  return updateEffectImpl(PassiveEffect, HookPassive, create, deps);
-}
-```
-
-```
-function updateEffectImpl(fiberFlags, hookFlags, create, deps): void {
-  const hook = updateWorkInProgressHook();
-  const nextDeps = deps === undefined ? null : deps;
-  let destroy = undefined;
-
-  if (currentHook !== null) {
-    const prevEffect = currentHook.memoizedState;
-    destroy = prevEffect.destroy;
-    if (nextDeps !== null) {
-      const prevDeps = prevEffect.deps;
-      if (areHookInputsEqual(nextDeps, prevDeps)) {
-        pushEffect(hookFlags, create, destroy, nextDeps);
-        return;
-      }
-    }
-  }
-
-  currentlyRenderingFiber.flags |= fiberFlags;
-
-  hook.memoizedState = pushEffect(
-    HookHasEffect | hookFlags,
-    create,
-    destroy,
-    nextDeps,
-  );
-}
-```
-
-## `pushEffect` will be used both in mount and update stages.
-```
-function pushEffect(tag, create, destroy, deps) {
-  const effect: Effect = {
-    tag,
-    create,
-    destroy,
-    deps,
-    // Circular
-    next: (null: any),
-  };
-  let componentUpdateQueue: null | FunctionComponentUpdateQueue = (currentlyRenderingFiber.updateQueue: any);
-  if (componentUpdateQueue === null) {
-    componentUpdateQueue = createFunctionComponentUpdateQueue();
-    currentlyRenderingFiber.updateQueue = (componentUpdateQueue: any);
-    componentUpdateQueue.lastEffect = effect.next = effect;
-  } else {
-    const lastEffect = componentUpdateQueue.lastEffect;
-    if (lastEffect === null) {
-      componentUpdateQueue.lastEffect = effect.next = effect;
-    } else {
-      const firstEffect = lastEffect.next;
-      lastEffect.next = effect;
-      effect.next = firstEffect;
-      componentUpdateQueue.lastEffect = effect;
-    }
-  }
-  return effect;
-}
-```
-> add the effect to the hook linked list and updateQueue

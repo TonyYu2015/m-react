@@ -18,6 +18,7 @@ All effects are queued in the run of FunctionComponent, and handled in the Commi
     - [`updateEffect`](#updateeffect)
     - [`updateLayoutEffect`](#updatelayouteffect)
     - [`updateEffectImpl`](#updateeffectimpl)
+  - [`pushEffect` will be used both in mount and update stages.](#pusheffect-will-be-used-both-in-mount-and-update-stages)
 
 ---
 ## Create Effect 
@@ -25,7 +26,7 @@ All effects are queued in the run of FunctionComponent, and handled in the Commi
 
 ### `mountEffect`
 
-  ```
+```javascript
 function mountEffect(
   create: () => (() => void) | void,
   deps: Array<mixed> | void | null,
@@ -37,11 +38,11 @@ function mountEffect(
       deps,
     );
 }
-  ```
+```
 
 ### `mountLayoutEffect`
   
-```
+```javascript
 function mountLayoutEffect(
   create: () => (() => void) | void,
   deps: Array<mixed> | void | null,
@@ -54,7 +55,7 @@ We can see that the two functions both call the `mountEffectImpl` to create thei
 
 ### `mountEffectImpl`
 
-```
+```javascript
 function mountEffectImpl(fiberFlags, hookFlags, create, deps): void {
   const hook = mountWorkInProgressHook();
   const nextDeps = deps === undefined ? null : deps;
@@ -72,7 +73,7 @@ Then call the `puchEffect` function to create new effect, mount it to the hooks 
 
 ###  `pushEffect`
 
-```
+```javascript
 function pushEffect(tag, create, destroy, deps) {
   const effect: Effect = {
     tag,
@@ -112,7 +113,7 @@ function pushEffect(tag, create, destroy, deps) {
 ### CommitBeforeMutationEffects
 > before DOM mutation
 
-```
+```javascript
 function commitBeforeMutationEffects(firstChild: Fiber) {
   let fiber = firstChild;
   // DFS
@@ -132,7 +133,7 @@ function commitBeforeMutationEffects(firstChild: Fiber) {
 
 `commitBeforeMutationEffectsImpl`
 
-```
+```javascript
 function commitBeforeMutationEffectsImpl(fiber: Fiber) {
   const current = fiber.alternate;
   const flags = fiber.flags;
@@ -156,7 +157,7 @@ Here we can see before the mutation stage, just schedule an async task of `flush
 
 ### CommitMutationEffects
 > DOM mutation
-```
+```javascript
 function commitMutationEffects(
   firstChild: Fiber,
   root: FiberRoot,
@@ -178,7 +179,7 @@ function commitMutationEffects(
 }
 ```
 `commitMutationEffectsImpl`
-```
+```javascript
 function commitMutationEffectsImpl(
   fiber: Fiber,
   root: FiberRoot,
@@ -203,7 +204,7 @@ function commitMutationEffectsImpl(
 }
 ```
 `commitWork`
-```
+```javascript
 function commitWork(current: Fiber | null, finishedWork: Fiber): void {
     switch (finishedWork.tag) {
       case FunctionComponent:
@@ -231,7 +232,7 @@ Before the DOM mutation, the desotry function of useLayoutEffect will be handled
 
 ### RecursivelyCommitLayoutEffects
 > after DOM mutation
-```
+```javascript
 function recursivelyCommitLayoutEffects() {
   let child = finishedWork.child;
   // DFS
@@ -267,7 +268,7 @@ function recursivelyCommitLayoutEffects() {
 ```
 
 `schedulePassiveEffectCallback`: schedule the passive effect async
-```
+```javascript
 export function schedulePassiveEffectCallback() {
   if (!rootDoesHavePassiveEffects) {
     rootDoesHavePassiveEffects = true;
@@ -282,7 +283,7 @@ export function schedulePassiveEffectCallback() {
 Here the function of useLayoutEffect will be called, and schedule another useEffect function.
 
 ## FlushPassiveEffects(useEffect function)
-```
+```javascript
 export function flushPassiveEffects(): boolean {
   // Returns whether passive effects were flushed.
   if (pendingPassiveEffectsRenderPriority !== NoSchedulerPriority) {
@@ -298,7 +299,7 @@ export function flushPassiveEffects(): boolean {
 ```
 We can see the real logic is in the `flushPassiveEffectsImpl` function.
 Only keep the related code.
-```
+```javascript
 function flushPassiveEffectsImpl() {
 
   // It's important that ALL pending passive effect destroy functions are called
@@ -316,7 +317,7 @@ function flushPassiveEffectsImpl() {
 ```
 
 `flushPassiveUnmountEffects`
-```
+```javascript
 function flushPassiveUnmountEffects(firstChild: Fiber): void {
   let fiber = firstChild;
   while (fiber !== null) {
@@ -344,7 +345,7 @@ function flushPassiveUnmountEffects(firstChild: Fiber): void {
 }
 ```
 `commitPassiveUnmountOnFiber` this function actully is `commitPassiveUnmount`
-```
+```javascript
 function commitPassiveUnmount(finishedWork: Fiber): void {
   switch (finishedWork.tag) {
     case FunctionComponent:
@@ -363,7 +364,7 @@ function commitPassiveUnmount(finishedWork: Fiber): void {
 ```
 
 `flushPassiveMountEffects`
-```
+```javascript
 function flushPassiveMountEffects(root, firstChild: Fiber): void {
   let fiber = firstChild;
   while (fiber !== null) {
@@ -383,7 +384,7 @@ function flushPassiveMountEffects(root, firstChild: Fiber): void {
 }
 ```
 `commitPassiveMountOnFiber` this function actully is `commitPassiveMount`
-```
+```javascript
 function commitPassiveMount(
   finishedRoot: FiberRoot,
   finishedWork: Fiber,
@@ -401,7 +402,7 @@ function commitPassiveMount(
 ```
 ---
 `commitHookEffectListUnmount`, `useEffect` and `useLayoutEffect` both will call this function in the last to run the destory function.
-```
+```javascript
 function commitHookEffectListUnmount(
   flags: HookFlags,
   finishedWork: Fiber,
@@ -428,7 +429,7 @@ function commitHookEffectListUnmount(
 ```
 
 `commitHookEffectListMount`, `useEffect` and `useLayoutEffect` both will call this function in the last to run the create function.
-```
+```javascript
 function commitHookEffectListMount(flags: HookFlags, finishedWork: Fiber) {
   const updateQueue: FunctionComponentUpdateQueue | null = (finishedWork.updateQueue: any);
   const lastEffect = updateQueue !== null ? updateQueue.lastEffect : null;
@@ -450,7 +451,7 @@ function commitHookEffectListMount(flags: HookFlags, finishedWork: Fiber) {
 ## Update Effect
 
 ### `updateEffect`
-```
+```javascript
 function updateEffect(
   create: () => (() => void) | void,
   deps: Array<mixed> | void | null,
@@ -459,7 +460,7 @@ function updateEffect(
 }
 ```
 ### `updateLayoutEffect`
-```
+```javascript
 function updateLayoutEffect(
   create: () => (() => void) | void,
   deps: Array<mixed> | void | null,
@@ -470,7 +471,7 @@ function updateLayoutEffect(
 > `useEffect` will run the `updateEffect`, `useLayoutEffect` will run the `updateLayoutEffect` in the update stage. And both directly call the `updateEffectImpl` function.
 
 ### `updateEffectImpl`
-```
+```javascript
 function updateEffectImpl(fiberFlags, hookFlags, create, deps): void {
   // get the hook linked list, 
   const hook = updateWorkInProgressHook();
@@ -502,4 +503,36 @@ function updateEffectImpl(fiberFlags, hookFlags, create, deps): void {
   );
 }
 ```
-The logic of `updateWorkInProgressHook`, you can see here [updateWorkInProgressHook](./theoryOfHooks.md#updateworkinprogresshook), and the `pushEffect` is here [pushEffect](theoryOfHooks.md#pusheffect-will-be-used-both-in-mount-and-update-stages)
+
+## `pushEffect` will be used both in mount and update stages.
+```javascript
+function pushEffect(tag, create, destroy, deps) {
+  const effect: Effect = {
+    tag,
+    create,
+    destroy,
+    deps,
+    // Circular
+    next: (null: any),
+  };
+  let componentUpdateQueue: null | FunctionComponentUpdateQueue = (currentlyRenderingFiber.updateQueue: any);
+  if (componentUpdateQueue === null) {
+    componentUpdateQueue = createFunctionComponentUpdateQueue();
+    currentlyRenderingFiber.updateQueue = (componentUpdateQueue: any);
+    componentUpdateQueue.lastEffect = effect.next = effect;
+  } else {
+    const lastEffect = componentUpdateQueue.lastEffect;
+    if (lastEffect === null) {
+      componentUpdateQueue.lastEffect = effect.next = effect;
+    } else {
+      const firstEffect = lastEffect.next;
+      lastEffect.next = effect;
+      effect.next = firstEffect;
+      componentUpdateQueue.lastEffect = effect;
+    }
+  }
+  return effect;
+}
+```
+> add the effect to the hook linked list and updateQueue
+The logic of `updateWorkInProgressHook`, you can see here [updateWorkInProgressHook](./theoryOfHooks.md#updateworkinprogresshook)
