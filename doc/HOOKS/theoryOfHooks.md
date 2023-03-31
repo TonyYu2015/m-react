@@ -1,4 +1,4 @@
-# The theory of hooks
+# The Theory of Hooks
 
 ## Concepts in Fiber related to hooks
 

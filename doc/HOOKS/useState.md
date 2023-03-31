@@ -1,11 +1,10 @@
-# State
+# **useState**
 
-1. Create State
-2. Update State
->we know if we want to update a FunctionComponent, will use a function returned from state hooks, here we introduce it.
+> We know we can use `useState` hook to store status and update status in the Component. 
+> Here we disucuss it in it's mount and update stage.
 
 ## Create State
-`useState` will be treated as `mountState`, here is the function
+`useState` will be treated as `mountState` in the mount stage
 
 ```javascript
 function mountState<S>(
@@ -32,6 +31,7 @@ function mountState<S>(
     currentlyRenderingFiber,
     queue,
   ): any));
+  // return as new state, and a set function: dispatch, which also is dispatchAction
   return [hook.memoizedState, dispatch];
 }
 ```
@@ -45,7 +45,7 @@ function updateState<S>(
   return updateReducer(basicStateReducer, (initialState: any));
 }
 ```
-we can see that `updateState` will call the `updateReducer` directly, so it is a simple example of reducer.
+we can see that `updateState` will call the `updateReducer` directly, so it is a simple type of reducer.
 
 ```javascript
 function updateReducer<S, I, A>(
@@ -69,7 +69,7 @@ function updateReducer<S, I, A>(
     // We have new updates that haven't been processed yet.
     // We'll add them to the base queue.
     if (baseQueue !== null) {
-      // Merge the pending queue and the base queue.
+      // Merge the pending queue and the base queue, the pending queue is added after the current baseQueue.
       const baseFirst = baseQueue.next;
       const pendingFirst = pendingQueue.next;
       baseQueue.next = pendingFirst;
@@ -79,6 +79,7 @@ function updateReducer<S, I, A>(
     queue.pending = null;
   }
 
+  // handle the queue of state update
   if (baseQueue !== null) {
     // We have a queue to process.
     const first = baseQueue.next;
@@ -165,12 +166,13 @@ function updateReducer<S, I, A>(
   }
 
   const dispatch: Dispatch<A> = (queue.dispatch: any);
+  // return as new state, and a set function: dispatch, which also is dispatchAction
   return [hook.memoizedState, dispatch];
 }
 ```
 
-## Fire an update from set new state
-All the update function from state hooks will call a function named `dispatchAction`.
+## Fire an update from a `set` Function
+All the `set` function will call a function named `dispatchAction`.
 >ignore some dev and unrelated code.
 ```javascript
 function dispatchAction<S, A>(
@@ -178,9 +180,12 @@ function dispatchAction<S, A>(
   queue: UpdateQueue<S, A>,
   action: A,
 ) {
+  // time of firing this update
   const eventTime = requestEventTime();
+  // priority of this update
   const lane = requestUpdateLane(fiber);
 
+  // create a new update
   const update: Update<S, A> = {
     lane,
     action,
@@ -192,12 +197,14 @@ function dispatchAction<S, A>(
   // Append the update to the end of the list.
   const pending = queue.pending;
   if (pending === null) {
-    // This is the first update. Create a circular list.
+    // no pending update in this hook, this is the first update. Create a circular list.
     update.next = update;
   } else {
+    // has pending update, add this update after the pending update
     update.next = pending.next;
     pending.next = update;
   }
+  // make this update as the newest update
   queue.pending = update;
 
   const alternate = fiber.alternate;
