@@ -119,7 +119,7 @@ function commitBeforeMutationEffectsImpl(fiber: Fiber) {
 }
 ```
 
-Here we can see before the mutation stage, just schedule an async task of `flushPassiveEffects`.
+Here we can see before the mutation stage, just schedule a task of `flushPassiveEffects`, and is an async task because of it set `NormalSchedulerPriority` level.
 
 ### CommitMutationEffects
 > DOM mutation
@@ -194,7 +194,7 @@ function commitWork(current: Fiber | null, finishedWork: Fiber): void {
 }
 ```
 
-Before the DOM mutation, the desotry function of useLayoutEffect will be handled, not like the useEffect.
+Before the DOM mutation, the desotry function of useLayoutEffect will be handled.
 
 ### RecursivelyCommitLayoutEffects
 > after DOM mutation
@@ -224,6 +224,7 @@ function recursivelyCommitLayoutEffects() {
         );
 
         if ((finishedWork.subtreeFlags & PassiveMask) !== NoFlags) {
+          // handle useEffect
           schedulePassiveEffectCallback();
         }
         break;
