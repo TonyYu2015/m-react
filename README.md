@@ -6,7 +6,7 @@
 ## Brief process 
   ![flow](./asserts/imgs/flow.svg)
 
-## Basic Concept
+## Basic Concepts
    1. Fiber Structure
    2. FiberRoot
 ## Reconciler

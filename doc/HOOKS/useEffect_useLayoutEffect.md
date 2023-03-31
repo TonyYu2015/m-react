@@ -1,24 +1,18 @@
-# Effect
+Effects
 All effects are queued in the run of FunctionComponent, and handled in the Commit stage. Here we discuss two main effects `useEffect` and `useLayoutEffect`.
 
-## Table Contents
-- [Effect](#effect)
-  - [Table Contents](#table-contents)
   - [Create Effect](#create-effect)
-    - [`mountEffect`](#mounteffect)
-    - [`mountLayoutEffect`](#mountlayouteffect)
-    - [`mountEffectImpl`](#mounteffectimpl)
-    - [`pushEffect`](#pusheffect)
+    - [mountEffect](#mounteffect)
+    - [mountLayoutEffect](#mountlayouteffect)
   - [Handle Effects](#handle-effects)
     - [CommitBeforeMutationEffects](#commitbeforemutationeffects)
     - [CommitMutationEffects](#commitmutationeffects)
     - [RecursivelyCommitLayoutEffects](#recursivelycommitlayouteffects)
   - [FlushPassiveEffects(useEffect function)](#flushpassiveeffectsuseeffect-function)
   - [Update Effect](#update-effect)
-    - [`updateEffect`](#updateeffect)
-    - [`updateLayoutEffect`](#updatelayouteffect)
-    - [`updateEffectImpl`](#updateeffectimpl)
-  - [`pushEffect` will be used both in mount and update stages.](#pusheffect-will-be-used-both-in-mount-and-update-stages)
+    - [updateEffect](#updateeffect)
+    - [updateLayoutEffect](#updatelayouteffect)
+  - [pushEffect](#pusheffect)
 
 ---
 ## Create Effect 
@@ -51,15 +45,25 @@ function mountLayoutEffect(
 }
 ```
 
-We can see that the two functions both call the `mountEffectImpl` to create their own effect. The difference between them is the parments passed into the function which will used in the commit stage.
+We can see that the two functions both call the `mountEffectImpl` to create their own effect. The difference between them is the parments passed into the function which will used in the commit stage. 
+
+- `mountEffect`:  
+  - `PassiveEffect` and `PassiveStaticEffect` are used for Fiber
+  - `HookPassive` is used for effect
+- `mountLayoutEffect`: 
+  - `UpdateEffect` is used for Fibter
+  - `HookLayout` is used for effect
 
 ### `mountEffectImpl`
 
 ```javascript
 function mountEffectImpl(fiberFlags, hookFlags, create, deps): void {
+  // get the hook linked list
   const hook = mountWorkInProgressHook();
   const nextDeps = deps === undefined ? null : deps;
+  // mark effect to the fiber
   currentlyRenderingFiber.flags |= fiberFlags;
+  // create new effect, mount it to the hook linked list and add it to the fiber's updateQueue
   hook.memoizedState = pushEffect(
     HookHasEffect | hookFlags,
     create,
@@ -69,46 +73,8 @@ function mountEffectImpl(fiberFlags, hookFlags, create, deps): void {
 }
 ```
 
-Then call the `puchEffect` function to create new effect, mount it to the hooks linked list and fiber's updateQueue.
-
-###  `pushEffect`
-
-```javascript
-function pushEffect(tag, create, destroy, deps) {
-  const effect: Effect = {
-    tag,
-    create,
-    destroy,
-    deps,
-    // Circular
-    next: (null: any),
-  };
-  let componentUpdateQueue: null | FunctionComponentUpdateQueue = (currentlyRenderingFiber.updateQueue: any);
-  if (componentUpdateQueue === null) {
-    componentUpdateQueue = createFunctionComponentUpdateQueue();
-    currentlyRenderingFiber.updateQueue = (componentUpdateQueue: any);
-    componentUpdateQueue.lastEffect = effect.next = effect;
-  } else {
-    const lastEffect = componentUpdateQueue.lastEffect;
-    if (lastEffect === null) {
-      componentUpdateQueue.lastEffect = effect.next = effect;
-    } else {
-      const firstEffect = lastEffect.next;
-      lastEffect.next = effect;
-      effect.next = firstEffect;
-      componentUpdateQueue.lastEffect = effect;
-    }
-  }
-  return effect;
-}
-```
-
 ## Handle Effects 
-> The handle effects action is in the commit stage, and the stage can be seperate into three steps.
-> 
-> 1. `commitBeforeMutationEffects` 
-> 2. `commitMutationEffects`
-> 3. `recursivelyCommitLayoutEffects`
+The handle effects action is in the Commit stage, and the stage can be seperate into three steps.
 
 ### CommitBeforeMutationEffects
 > before DOM mutation
@@ -504,7 +470,8 @@ function updateEffectImpl(fiberFlags, hookFlags, create, deps): void {
 }
 ```
 
-## `pushEffect` will be used both in mount and update stages.
+## `pushEffect` 
+This will be used both in mount and update stages.
 ```javascript
 function pushEffect(tag, create, destroy, deps) {
   const effect: Effect = {
