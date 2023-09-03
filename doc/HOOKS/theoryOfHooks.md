@@ -1,9 +1,18 @@
-# The theory of hooks
+# The Theory of Hooks
 
 ## Concepts in Fiber related to hooks
 
 ```javascript
-// a hook linked list when render
+// a hook definition
+type Hook = {
+    memoizedState: any, // stored state
+    baseState: any, // initial state
+    baseQueue: Update,
+    queue: UpdateQueue,
+    next: Hook, // next hook in the  hook linked list
+}
+
+// a hook linked list when a FunctionComponent runing
 let WorkInProgressHook: Hook; 
 
 // the hook linked list  in the current structure
@@ -30,14 +39,6 @@ type UpdateQueue<S, A> = {
   lastRenderedState: S | null,
 };
 
-// a hook definition
-type Hook = {
-    memoizedState: any, // stored state
-    baseState: any, // initial state
-    baseQueue: Update,
-    queue: UpdateQueue,
-    next: Hook, // next hook in the  hook linked list
-}
 
 // effect hook
 type Effect = {
@@ -50,11 +51,11 @@ type Effect = {
 
 type Fiber = {
     memoizedState: Hook,  // hook linked list (include all hooks)
-    updateQueue: Hook, // effect linked list (only effect hooks), will be used in the commit stage
+    updateQueue: Hook, // effect linked list (only effect hooks), will be handled in the Commit stage
 }
 ```
 
-## Entry of FunctionCompoent run
+## Entry of FunctionComponent
 >only keep the related code
 ```javascript
 function updateFunctionComponent(
@@ -126,11 +127,11 @@ function renderWithHooks(
 
 ## Inside the FunctionComponent
 
-Before introduce the hooks function, we should know `mountWorkInProgressHook` and `updateWorkInProgressHook`, the two 
+Before introduce the hooks, we need to know `mountWorkInProgressHook` and `updateWorkInProgressHook`, they maintain hooks linked list when runing, the two 
 functions will be called in mount and update stages respectivly, they will return a new hook or an existed hook.
 
-very simple in the mount function, create a new hook, assign it to workInProgressHook and fiber.memoizedState if not existed,
-or assign it to the current workInProgressHook's next, and move the workInProgressHook to the new hook.
+Very simple in the mount function, create a new hook, assign it to workInProgressHook and fiber.memoizedState if not existed,
+or assign it to the current workInProgressHook's next, and move the workInProgressHook to the new hook on the hooks linked list.
 
 
 ### `mountWorkInProgressHook`
@@ -145,20 +146,19 @@ function mountWorkInProgressHook(): Hook {
   };
 
   if (workInProgressHook === null) {
-    // This is the first hook in the linked list
+    // This is the first hook in the hooks linked list
     currentlyRenderingFiber.memoizedState = workInProgressHook = hook;
   } else {
-    // Append to the end of the linked list
+    // Append to the end of the hooks linked list
     workInProgressHook = workInProgressHook.next = hook;
   }
   return workInProgressHook;
 }
 ```
 
-
 ### `updateWorkInProgressHook`
 
-the update function will move workInProgressHook and currentHook to next.
+the update function will move workInProgressHook and currentHook to next in sync.
 
 ```javascript
 function updateWorkInProgressHook(): Hook {
@@ -167,6 +167,8 @@ function updateWorkInProgressHook(): Hook {
   // clone, or a work-in-progress hook from a previous render pass that we can
   // use as a base. When we reach the end of the base list, we must switch to
   // the dispatcher used for mounts.
+
+  // get the next hook 
   let nextCurrentHook: null | Hook;
   if (currentHook === null) {
     const current = currentlyRenderingFiber.alternate;
@@ -186,6 +188,9 @@ function updateWorkInProgressHook(): Hook {
     nextWorkInProgressHook = workInProgressHook.next;
   }
 
+  // i guess the nextWorkInProgressHook will always null, bucause the workInProgressHook is set to null after prev FunctionComponent finished, and the
+  // currentlyRenderingFiber.memoizedState is set to null before this FunctionComponent run, so we always need to copy the hook from the current. That means
+  // the workInProgressHook and currentHook will always sync in the hooks linked list.
   if (nextWorkInProgressHook !== null) {
     // There's already a work-in-progress. Reuse it.
     workInProgressHook = nextWorkInProgressHook;
@@ -195,10 +200,6 @@ function updateWorkInProgressHook(): Hook {
   } else {
     // Clone from the current hook.
 
-    invariant(
-      nextCurrentHook !== null,
-      'Rendered more hooks than during the previous render.',
-    );
     // move to nextCurrentHook
     currentHook = nextCurrentHook;
 
@@ -224,6 +225,5 @@ function updateWorkInProgressHook(): Hook {
 }
 ```
 
-1. here we can learn why we should not use hooks in a condition statement, because it will rebuild the workInprogressHook linkd
+> Here we can learn that why we should not use hooks in a condition statement, because it will rebuild the workInprogressHook linkd
 list based on the currentHook linked list, so it may confuse the order if a hook is not the same in the same place. 
-2. and don'tupdate the state inside the FunctionComponent as much as possible to avoid reach the limition of render times(25).

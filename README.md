@@ -6,7 +6,7 @@
 ## Brief process 
   ![flow](./asserts/imgs/flow.svg)
 
-## Basic Concept
+## Basic Concepts
    1. Fiber Structure
    2. FiberRoot
 ## Reconciler
@@ -22,6 +22,6 @@
 >Hooks have been a very important part of react after it was appended into react, and also run very well in our daliy develope tasks. I think we can use it much better if we know the theory of how the hooks work in the process.
 
    1. [Theory of Hooks](doc/HOOKS/theoryOfHooks.md)
-   2. [State Hook](./doc/HOOKS/setNewState.md)
-   3. [Effect Hook](doc/HOOKS/effectRun.md)
+   2. [State Hook](./doc/HOOKS/useState.md)
+   3. [Effect Hook](doc/HOOKS/useEffect_useLayoutEffect.md)
 ## Priority
